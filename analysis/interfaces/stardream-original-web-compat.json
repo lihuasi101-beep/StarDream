@@ -21,6 +21,7 @@
     "channel": "GitHub Pages via GitHub Actions",
     "artifact": "publish-github.ps1 generates a self-contained static directory",
     "compatibility": "the Pages artifact serves the selected STAR_CHS or STAR_CHT files directly; compat.html fetches one language pack on demand and keeps DOSBox-X runtime files local",
+    "asset_cache": "the selected language pack is loaded in parallel and persisted in versioned Cache Storage, with in-memory fallback during the current page session",
     "mobile": "mobile entry points use autostart and avoid the previous all-language Base64 asset bundle",
     "verified": "the local and GitHub Pages artifacts boot CHS/CHT to a 640x480 canvas"
   },

@@ -74,6 +74,9 @@
       let launchInProgress = false;
       const SAVE_DB_NAME = "stardream-original-save-v1";
       const SAVE_STORE_NAME = "saves";
+      const ASSET_CACHE_NAME = "stardream-original-assets-v1";
+      const assetMemoryCache = new Map();
+      let assetCachePromise = null;
       if (new URLSearchParams(window.location.search).get("lang") === "cht") language.value = "cht";
       const ORIGINAL_FILES = [
         "BOWLING.ARB", "CDROM01.DAT", "INST.CFG", "INSTW.DAT", "MODELALL.ARB", "OPDANCE.ARB",
@@ -172,10 +175,33 @@ exit`;
 
       function setStatus(text) { status.textContent = text; }
 
+      function openAssetCache() {
+        if (!window.caches) return Promise.resolve(null);
+        if (!assetCachePromise) assetCachePromise = window.caches.open(ASSET_CACHE_NAME).catch(() => null);
+        return assetCachePromise;
+      }
+
       async function readOriginalAsset(folder, file) {
-        const response = await fetch(`${folder}/${file}`);
+        const key = `${folder}/${file}`;
+        const cachedBytes = assetMemoryCache.get(key);
+        if (cachedBytes) return cachedBytes.slice();
+        const url = new URL(key, document.baseURI).toString();
+        const cache = await openAssetCache();
+        if (cache) {
+          const cachedResponse = await cache.match(url).catch(() => null);
+          if (cachedResponse) {
+            const bytes = new Uint8Array(await cachedResponse.arrayBuffer());
+            assetMemoryCache.set(key, bytes);
+            return bytes.slice();
+          }
+        }
+        const response = await fetch(url, { cache: "force-cache" });
         if (!response.ok) throw new Error(`原始资源加载失败 (${response.status}) · ${file}`);
-        return new Uint8Array(await response.arrayBuffer());
+        const responseForCache = cache ? response.clone() : null;
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        assetMemoryCache.set(key, bytes);
+        if (cache && responseForCache) await cache.put(url, responseForCache).catch(() => {});
+        return bytes.slice();
       }
 
       async function launchOriginal() {
@@ -192,13 +218,14 @@ exit`;
         try {
           let storedSave = null;
           try { storedSave = await readStoredSave(folder); } catch (error) { setStatus(`本地存档不可用 · ${error.message || error}`); }
-          const initFs = [];
-          for (let index = 0; index < ORIGINAL_FILES.length; index += 1) {
-            const file = ORIGINAL_FILES[index];
-            setStatus(`正在加载原始资源 ${index + 1}/${ORIGINAL_FILES.length} · ${file}`);
-            const contents = file === "STARSAVE.SSS" && storedSave ? storedSave : await readOriginalAsset(folder, file);
-            initFs.push({ path: `${folder}/${file}`, contents });
-          }
+          let loadedCount = 0;
+          const initFs = await Promise.all(ORIGINAL_FILES.map(async (file) => {
+            const asset = await readOriginalAsset(folder, file);
+            loadedCount += 1;
+            setStatus(`正在加载原始资源 ${loadedCount}/${ORIGINAL_FILES.length} · ${file}`);
+            const contents = file === "STARSAVE.SSS" && storedSave ? storedSave : asset;
+            return { path: `${folder}/${file}`, contents };
+          }));
           const config = DOSBOX_CONFIG.replace("STAR_CHS", language.value === "cht" ? "STAR_CHT" : "STAR_CHS");
           player = Dos(host, {
             dosboxConf: config,
