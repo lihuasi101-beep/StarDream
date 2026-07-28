@@ -10,4 +10,4 @@
 pwsh -NoProfile -File .\publish-github.ps1 -OutputPath .\github-pages-build
 ```
 
-脚本会生成自包含的 Web Edition 和原版兼容模式，包含本地 DOSBox-X 运行时及第三方许可说明；不需要运行时网络资源或外部发布服务。
+脚本会生成自包含的 Web Edition 和原版兼容模式，包含本地 DOSBox-X 运行时、两套原始语言目录及第三方许可说明；不依赖外部发布服务，原版资源按需从同一 Pages 站点加载。

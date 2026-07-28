@@ -1,7 +1,7 @@
 {
   "id": "stardream.original_web_compat",
   "type": "module",
-  "summary": "Browser compatibility page that boots the original DOS program with js-dos 8.4.1, direct local filesystem injection, and a static-host-safe embedded asset bridge",
+  "summary": "Browser compatibility page that boots the original DOS program with js-dos 8.4.1 and direct static language-pack loading",
   "entry_points": ["compat.html", "window.StarDreamCompat"],
   "runtime": {
     "library": "js-dos",
@@ -10,7 +10,7 @@
     "backend": "wdosbox-x.wasm"
   },
   "resource_sets": ["STAR_CHS", "STAR_CHT"],
-  "evidence": ["compat.html", "compat/static-assets.js", "compat/build-static-assets.ps1", "compat/runtime/emulators/wdosbox-x.js", "compat/runtime/emulators/wdosbox-x.wasm", "THIRD_PARTY_NOTICES.md"],
+  "evidence": ["compat.html", "STAR_CHS/*", "STAR_CHT/*", "compat/runtime/emulators/wdosbox-x.js", "compat/runtime/emulators/wdosbox-x.wasm", "THIRD_PARTY_NOTICES.md"],
   "save_contract": {
     "database": "stardream-original-save-v1",
     "key": "STARSAVE.SSS:<STAR_CHS|STAR_CHT>",
@@ -20,8 +20,9 @@
   "deployment": {
     "channel": "GitHub Pages via GitHub Actions",
     "artifact": "publish-github.ps1 generates a self-contained static directory",
-    "compatibility": "compat/static-assets.js embeds the selected original files and DOSBox-X resources, then intercepts fetch and XMLHttpRequest in memory",
-    "verified": "the local artifact boots CHS/CHT to a 640x480 canvas"
+    "compatibility": "the Pages artifact serves the selected STAR_CHS or STAR_CHT files directly; compat.html fetches one language pack on demand and keeps DOSBox-X runtime files local",
+    "mobile": "mobile entry points use autostart and avoid the previous all-language Base64 asset bundle",
+    "verified": "the local and GitHub Pages artifacts boot CHS/CHT to a 640x480 canvas"
   },
   "remaining_risk": "There is no save export/import UI yet; browser private-mode or storage eviction can still remove local saves."
 }

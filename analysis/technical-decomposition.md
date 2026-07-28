@@ -6,7 +6,7 @@
 
 本次已落地一个静态网页端 Web Edition，入口为项目根目录的 `index.html`。它重建了可验证的核心经营闭环：查看状态、安排训练/工作/休息、推进日期、获得资金和粉丝、触发事件、保存/加载进度。它不声称逐字节兼容原版，也不修改原始发行文件。
 
-本轮继续完善了 `compat.html` 原版兼容入口，并固定 js-dos 8.4.1 的本地运行时。页面逐文件读取 `STAR_CHS`/`STAR_CHT`，注入 js-dos 的虚拟文件系统，再用 DOSBox-X WASM 启动原版 `STAROPEN.EXE`；简体和繁体路径均已验证进入 `640x480` 运行画布。原版 `STARSAVE.SSS` 已按语言包接入 IndexedDB 恢复与写回。GitHub Pages 发布包由 `publish-github.ps1` 生成，包含 `compat/static-assets.js`，将原始语言包与 DOSBox-X JS/WASM 嵌入并提供内存 fetch/XHR 适配。
+本轮继续完善了 `compat.html` 原版兼容入口，并固定 js-dos 8.4.1 的本地运行时。页面按选择逐文件读取 `STAR_CHS`/`STAR_CHT`，注入 js-dos 的虚拟文件系统，再用 DOSBox-X WASM 启动原版 `STAROPEN.EXE`；简体和繁体路径均已验证进入 `640x480` 运行画布。原版 `STARSAVE.SSS` 已按语言包接入 IndexedDB 恢复与写回。GitHub Pages 发布包由 `publish-github.ps1` 生成，直接提供两套原始语言目录，避免移动端解码包含两套资源的 Base64 脚本。
 
 ## 证据范围与限制
 
@@ -82,7 +82,7 @@ DOS Game Launch.exe (.NET Framework 4.8)
 
 ### 已实现：原版 WebAssembly 兼容层
 
-`compat.html` 加载项目内的 js-dos 8.4.1、`wdosbox-x.js` 与 `wdosbox-x.wasm`。`compat/build-static-assets.ps1` 从两套原始目录生成 `compat/static-assets.js`，GitHub Pages artifact 通过该索引读取 18 个文件，并以 `{ path, contents }` 形式注入虚拟文件系统；随后提供与 `STAR1_CHS.conf`/`STAR1_CHT.conf` 一致的 `autoexec`：挂载当前目录、切换语言目录、执行 `STAROPEN.EXE`。这样避免浏览器 bundle 解压兼容差异和运行时外部网络依赖。
+`compat.html` 加载项目内的 js-dos 8.4.1、`wdosbox-x.js` 与 `wdosbox-x.wasm`。GitHub Pages artifact 直接提供 `STAR_CHS`/`STAR_CHT` 目录，页面只 fetch 当前语言包的 18 个文件，并以 `{ path, contents }` 形式注入虚拟文件系统；随后提供与 `STAR1_CHS.conf`/`STAR1_CHT.conf` 一致的 `autoexec`：挂载当前目录、切换语言目录、执行 `STAROPEN.EXE`。移动入口带 `autostart=1`，避免用户停留在未启动的黑色画布。
 
 兼容页通过 js-dos 的 `ci-ready` 事件取得 `CommandInterface`。启动前从 `stardream-original-save-v1` 读取对应语言的 `STARSAVE.SSS` 覆盖初始文件；用户点击“保存存档”或停止兼容层时，通过 `fsReadFile` 读取运行中的文件并写回 IndexedDB。简体和繁体使用不同 key，避免互相覆盖。
 

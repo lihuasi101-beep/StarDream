@@ -28,8 +28,8 @@
     .control-button.stop { color:var(--paper); background:var(--coral); }
     .control-button.save { color:var(--ink); background:var(--yellow); }
     .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
-    .emulator-frame { min-height:calc(min(70vw, 640px) + 92px); padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); }
-    #dosbox { width:100%; height:min(70vw,640px); min-height:360px; background:#000; }
+    .emulator-frame { min-height:calc(min(70vw, 640px) + 92px); padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); overflow:hidden; }
+    #dosbox { width:100%; height:min(70vw,640px); min-height:360px; background:#000; touch-action:none; }
     #dosbox canvas { image-rendering:pixelated; }
     .compat-note { display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin-top:12px; }
     .note { padding:12px; border-top:3px solid var(--teal); background:var(--ink-soft); color:#ded5bf; font-size:11px; line-height:1.55; }
@@ -58,7 +58,6 @@
       <div class="note"><strong>存档边界</strong><br><code>STARSAVE.SSS</code> 会按语言包保存到浏览器 IndexedDB；启动原版时自动恢复，点击“保存存档”或停止兼容层时写回。</div>
     </section>
   </main>
-  <script src="compat/static-assets.js"></script>
   <script src="compat/runtime/js-dos.js"></script>
   <script>
     (() => {
@@ -71,6 +70,7 @@
       let player = null;
       let commandInterface = null;
       let currentFolder = "";
+      let launchInProgress = false;
       const SAVE_DB_NAME = "stardream-original-save-v1";
       const SAVE_STORE_NAME = "saves";
       if (new URLSearchParams(window.location.search).get("lang") === "cht") language.value = "cht";
@@ -171,8 +171,17 @@ exit`;
 
       function setStatus(text) { status.textContent = text; }
 
+      async function readOriginalAsset(folder, file) {
+        const response = await fetch(`${folder}/${file}`);
+        if (!response.ok) throw new Error(`原始资源加载失败 (${response.status}) · ${file}`);
+        return new Uint8Array(await response.arrayBuffer());
+      }
+
       async function launchOriginal() {
-        if (player) return;
+        if (player || launchInProgress) return;
+        launchInProgress = true;
+        launch.disabled = true;
+        language.disabled = true;
         const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
         currentFolder = folder;
         commandInterface = null;
@@ -186,9 +195,7 @@ exit`;
           for (let index = 0; index < ORIGINAL_FILES.length; index += 1) {
             const file = ORIGINAL_FILES[index];
             setStatus(`正在加载原始资源 ${index + 1}/${ORIGINAL_FILES.length} · ${file}`);
-            const response = await window.STAR_DREAM_STATIC_ASSETS.read(`${folder}/${file}`);
-            if (!response.ok) throw new Error(`原始资源加载失败 (${response.status}) · ${file}`);
-            const contents = file === "STARSAVE.SSS" && storedSave ? storedSave : new Uint8Array(await response.arrayBuffer());
+            const contents = file === "STARSAVE.SSS" && storedSave ? storedSave : await readOriginalAsset(folder, file);
             initFs.push({ path: `${folder}/${file}`, contents });
           }
           const config = DOSBOX_CONFIG.replace("STAR_CHS", language.value === "cht" ? "STAR_CHT" : "STAR_CHS");
@@ -208,8 +215,6 @@ exit`;
             renderAspect: true,
             autoStart: true
           });
-          launch.disabled = true;
-          language.disabled = true;
           stop.disabled = false;
           setStatus("原版兼容层已启动 · 等待 STAROPEN.EXE 输出画面");
         } catch (error) {
@@ -218,6 +223,12 @@ exit`;
           currentFolder = "";
           saveOriginalButton.disabled = true;
           setStatus(`启动失败 · ${error.message || error}`);
+        } finally {
+          launchInProgress = false;
+          if (!player) {
+            launch.disabled = false;
+            language.disabled = false;
+          }
         }
       }
 
@@ -226,6 +237,7 @@ exit`;
         await saveOriginalSave(false);
         try { await player.stop(); } catch (error) { setStatus(`停止时出现异常 · ${error.message || error}`); }
         player = null;
+        launchInProgress = false;
         commandInterface = null;
         currentFolder = "";
         host.innerHTML = "";
@@ -240,7 +252,9 @@ exit`;
       saveOriginalButton.addEventListener("click", () => { saveOriginalSave(true); });
       stop.addEventListener("click", stopOriginal);
       window.StarDreamCompat = { launch: launchOriginal, save: saveOriginalSave, stop: stopOriginal };
-      if (new URLSearchParams(window.location.search).get("autostart") === "1") setTimeout(launchOriginal, 80);
+      const query = new URLSearchParams(window.location.search);
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia("(max-width: 700px)").matches;
+      if (query.get("autostart") === "1" || (isMobile && query.get("autostart") !== "0")) setTimeout(launchOriginal, 180);
     })();
   </script>
 </body>

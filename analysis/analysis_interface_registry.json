@@ -56,7 +56,7 @@
       "type": "module",
         "responsibility": "在浏览器中以 js-dos WebAssembly 逐文件加载原始 DOS 发行包",
         "entry_points": ["compat.html", "window.StarDreamCompat"],
-        "source_files": ["compat.html", "compat/static-assets.js", "compat/build-static-assets.ps1", "compat/runtime/js-dos.js", "compat/runtime/js-dos.css", "compat/runtime/emulators/emulators.js", "compat/runtime/emulators/wdosbox-x.js", "compat/runtime/emulators/wdosbox-x.wasm", "compat/runtime/emulators/wlibzip.js", "compat/runtime/emulators/wlibzip.wasm", "THIRD_PARTY_NOTICES.md"],
+        "source_files": ["compat.html", "STAR_CHS/*", "STAR_CHT/*", "compat/runtime/js-dos.js", "compat/runtime/js-dos.css", "compat/runtime/emulators/emulators.js", "compat/runtime/emulators/wdosbox-x.js", "compat/runtime/emulators/wdosbox-x.wasm", "compat/runtime/emulators/wlibzip.js", "compat/runtime/emulators/wlibzip.wasm", "THIRD_PARTY_NOTICES.md"],
         "index_files": ["STAR_CHS/STAROPEN.EXE", "STAR_CHT/STAROPEN.EXE"],
       "config_tables": [],
       "depends_on": ["stardream.original_launch", "js-dos-8.4.1"],
@@ -67,8 +67,8 @@
           {"source": "compat.html", "line": 198, "detail": "DOSBox-X is selected as the emulation backend"},
           {"source": "compat.html", "line": 159, "detail": "the running STARSAVE.SSS file is read from the virtual filesystem"},
           {"source": "compat.html", "line": 162, "detail": "the current language save is persisted to IndexedDB"},
-          {"source": "compat.html", "line": 61, "detail": "the static-host-safe asset bridge loads before js-dos"},
-          {"source": "compat/build-static-assets.ps1", "line": 143, "detail": "the embedded resource reader is generated from the original files and DOSBox-X assets"},
+          {"source": "compat.html", "line": 189, "detail": "the selected language files are fetched on demand and injected into initFs"},
+          {"source": "publish-github.ps1", "line": 39, "detail": "the GitHub Pages artifact copies both original language folders directly"},
           {"source": "publish-github.ps1", "line": 71, "detail": "the GitHub Pages artifact is assembled without legacy publishing metadata"},
           {"source": ".github/workflows/deploy-pages.yml", "line": 34, "detail": "GitHub Actions uploads the generated Pages artifact"}
       ]

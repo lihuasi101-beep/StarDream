@@ -30,16 +30,6 @@ if (Test-Path -LiteralPath $artifactOutputPath) {
   throw "Output path already exists; choose a new path or remove it explicitly: $artifactOutputPath"
 }
 
-$assetBuilder = Join-Path $publishProjectRoot 'compat/build-static-assets.ps1'
-$assetOutput = Join-Path $publishProjectRoot 'compat/static-assets.js'
-if ($PSScriptRoot) {
-  & $assetBuilder -OutputPath $assetOutput
-  if (-not $?) { throw "Static asset generation failed" }
-} else {
-  $builderText = [System.IO.File]::ReadAllText($assetBuilder)
-  Invoke-Expression $builderText
-}
-
 $runtimeOutput = Join-Path $artifactOutputPath 'compat/runtime'
 $emulatorOutput = Join-Path $runtimeOutput 'emulators'
 New-Item -ItemType Directory -Force -Path $emulatorOutput | Out-Null
@@ -53,9 +43,9 @@ Copy-Item -LiteralPath @(
   (Join-Path $publishProjectRoot 'analysis_original_dosbox_menu.png')
 ) -Destination $artifactOutputPath -Force
 
-Copy-Item -LiteralPath @(
-  (Join-Path $publishProjectRoot 'compat/static-assets.js')
-) -Destination (Join-Path $artifactOutputPath 'compat') -Force
+foreach ($folder in @('STAR_CHS', 'STAR_CHT')) {
+  Copy-Item -LiteralPath (Join-Path $publishProjectRoot $folder) -Destination $artifactOutputPath -Recurse -Force
+}
 
 Copy-Item -LiteralPath @(
   (Join-Path $publishProjectRoot 'compat/runtime/js-dos.css'),
