@@ -10,7 +10,7 @@
     * { box-sizing:border-box; }
     html, body { min-height:100%; margin:0; background:var(--ink); color:var(--paper); font-family:"Trebuchet MS","Microsoft YaHei",sans-serif; letter-spacing:0; }
     body { background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size:22px 22px; }
-    button, select { font:inherit; letter-spacing:0; }
+    button, select { font:inherit; letter-spacing:0; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
     button { border:0; cursor:pointer; }
     button:disabled { cursor:not-allowed; opacity:.45; }
     .compat-shell { width:min(1180px,100%); margin:0 auto; padding:22px clamp(16px,4vw,54px) 44px; }
@@ -23,19 +23,20 @@
     .back-link:hover { border-color:var(--teal); }
     .control-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:18px 0 12px; }
     .control-bar label { color:var(--paper-dim,#ded5bf); font-size:11px; }
-    select { min-height:37px; padding:0 28px 0 10px; border:1px solid var(--line); background:var(--ink-soft); color:var(--paper); }
-    .control-button { min-height:37px; padding:0 13px; color:var(--ink); background:var(--teal); font-size:11px; font-weight:900; }
+    select { min-height:44px; padding:0 28px 0 10px; border:1px solid var(--line); background:var(--ink-soft); color:var(--paper); }
+    .control-button { min-height:44px; padding:0 13px; color:var(--ink); background:var(--teal); font-size:11px; font-weight:900; }
     .control-button.stop { color:var(--paper); background:var(--coral); }
     .control-button.save { color:var(--ink); background:var(--yellow); }
     .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
-    .emulator-frame { min-height:calc(min(70vw, 640px) + 92px); padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); overflow:hidden; }
-    #dosbox { width:100%; height:min(70vw,640px); min-height:360px; background:#000; touch-action:none; }
-    #dosbox canvas { image-rendering:pixelated; }
+    .emulator-frame { padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); overflow:hidden; }
+    #dosbox { width:100%; aspect-ratio:4 / 3; height:auto; min-height:0; background:#000; touch-action:none; overscroll-behavior:contain; }
+    #dosbox > .jsdos-rso, #dosbox canvas { width:100%; height:100%; }
+    #dosbox canvas { display:block; image-rendering:pixelated; }
     .compat-note { display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin-top:12px; }
     .note { padding:12px; border-top:3px solid var(--teal); background:var(--ink-soft); color:#ded5bf; font-size:11px; line-height:1.55; }
     .note strong { color:var(--paper); }
     code { color:var(--yellow); font-family:Consolas,monospace; }
-    @media (max-width:700px) { .compat-header { flex-direction:column; } .back-link { align-self:stretch; text-align:center; } .compat-note { grid-template-columns:1fr; } #dosbox { min-height:280px; } .emulator-frame { min-height:calc(70vw + 92px); padding:8px; } }
+    @media (max-width:700px) { .compat-header { flex-direction:column; } .back-link { align-self:stretch; text-align:center; } .compat-note { grid-template-columns:1fr; } .emulator-frame { padding:8px; } }
   </style>
 </head>
 <body>
