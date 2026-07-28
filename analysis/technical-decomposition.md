@@ -1,0 +1,116 @@
+# 《明星志愿一》技术拆解与网页端改造方案
+
+## 执行摘要
+
+当前目录不是原始工程源码，而是一个 Windows 发行包。发行包使用 .NET Framework 4.8 启动器拉起 DOSBox 0.74-3，再从 `STAR_CHS` 或 `STAR_CHT` 挂载目录启动 `STAROPEN.EXE`。`STAROPEN.EXE` 负责进入 `STARDOM.EXE`，游戏主体和资源均以 DOS 可执行文件与私有二进制包形式交付。
+
+本次已落地一个静态网页端 Web Edition，入口为项目根目录的 `index.html`。它重建了可验证的核心经营闭环：查看状态、安排训练/工作/休息、推进日期、获得资金和粉丝、触发事件、保存/加载进度。它不声称逐字节兼容原版，也不修改原始发行文件。
+
+本轮继续完善了 `compat.html` 原版兼容入口，并固定 js-dos 8.4.1 的本地运行时。页面逐文件读取 `STAR_CHS`/`STAR_CHT`，注入 js-dos 的虚拟文件系统，再用 DOSBox-X WASM 启动原版 `STAROPEN.EXE`；简体和繁体路径均已验证进入 `640x480` 运行画布。原版 `STARSAVE.SSS` 已按语言包接入 IndexedDB 恢复与写回。GitHub Pages 发布包由 `publish-github.ps1` 生成，包含 `compat/static-assets.js`，将原始语言包与 DOSBox-X JS/WASM 嵌入并提供内存 fetch/XHR 适配。
+
+## 证据范围与限制
+
+证据全部来自当前工作区文件、DOSBox 实际启动窗口和本地生成的截图。当前工作区没有 C/C++/Pascal/汇编源码、工程文件、资源格式说明或 WebAssembly 构建链；本机也没有发现 `node`、`npm`、`python`、`emcc`、`dotnet` 等可直接用于移植的工具。
+
+因此，下列内容可以确认：启动链路、版本、目录结构、语言包边界、资源索引结构、原版开场画面和发行包的文件依赖。下列内容暂不能确认：私有资源块的解码算法、原版完整数值公式、事件脚本全集、音频驱动细节和源代码级模块边界。
+
+## 原版运行链路
+
+```text
+DOS Game Launch.exe (.NET Framework 4.8)
+  -> DOSBox.exe 0.74-3
+     -> STAR1_CHS.conf / STAR1_CHT.conf
+        -> mount c . -freesize 1024
+        -> cd STAR_CHS / STAR_CHT
+        -> STAROPEN.EXE
+           -> STARDOM.EXE
+              -> ARB / MKB / DAT / SSS 资源与存档
+```
+
+`STAR1_CHS.conf` 的 `[autoexec]` 明确写入挂载、切换目录和 `STAROPEN.EXE`。配置同时确认 `machine=svga_s3`、`memsize=2`、`windowresolution=640x480`、`aspect=true`、Sound Blaster 16 和 PC speaker 开启。
+
+## 文件地图
+
+| 文件 | 规模/作用 | 结论 |
+| --- | --- | --- |
+| `DOS Game Launch.exe` | 151,552 bytes，FileVersion 1.0.0.0 | Windows 启动包装器 |
+| `DOSBox.exe` | 3,745,792 bytes，FileVersion 0.74-3 | DOS 兼容运行时 |
+| `STAR_CHS/STAROPEN.EXE` | 239,534 bytes | 简体版入口程序 |
+| `STAR_CHS/STARDOM.EXE` | 247,020 bytes | 游戏主体程序 |
+| `STAR_CHS/*.ARB` | 5 个私有资源包 | 图像/界面/场景等资源，带偏移索引 |
+| `STAR_CHS/*.MKB` | 4 个私有资源包 | 音乐/字库/其他块资源，带偏移索引或内部结构 |
+| `STAR_CHS/INSTW.DAT` | 38,506 bytes | 安装/界面相关二进制数据，非文本配置 |
+| `STAR_CHS/CDROM01.DAT` | 2,307 bytes | CD/媒体相关二进制数据 |
+| `STAR_CHS/STARSAVE.SSS` | 10,780 bytes | 当前存档文件 |
+| `STAR_CHS/STARSA00.SSS` | 59 bytes | 初始存档/存档模板线索 |
+| `STAR_CHT/*` | 与简体包几乎完全相同 | 仅 `STARFON.MKB` 与 `STARFONA.MKB` 的 SHA-256 不同，说明语音/字体等语言相关资源被拆分 |
+
+## 资源包格式观察
+
+已确认 `.ARB` 和部分 `.MKB` 文件开头是小端 32 位整数索引。索引值可以作为条目数和条目偏移使用：
+
+| 包 | 观察到的条目数 | 第一个资源偏移 | 证据 |
+| --- | ---: | ---: | --- |
+| `STARARJ.ARB` | 220 | `0x8A2A` | 文件偏移表 `0x00` 起始，首个资源 `0x8A2A` |
+| `STARMAP.ARB` | 252 | `0x03FE` | 文件偏移表 `0x00` 起始，首个资源 `0x03FE` |
+| `STAROPEN.ARB` | 272 | `0x5473` | 文件偏移表 `0x00` 起始，首个资源 `0x5473` |
+| `MODELALL.ARB` | 588 | `0x0C24` | 文件偏移表 `0x00` 起始，首个资源 `0x0C24` |
+| `BOWLING.ARB` | 80 | `0x1DE4` | 文件偏移表 `0x00` 起始，首个资源 `0x1DE4` |
+
+条目内容没有 JPEG/PNG/BMP 等标准头，抽样数据具有高熵，说明至少经过压缩或专用编码。`STARDOM.MKB` 的第一个块从 `0x115C` 开始，包含明显的低熵结构化数据，但没有标准音频/图片头。浏览器不能直接消费这些文件，后续需要逆向解包器或在 WASM 虚拟磁盘中交给原版程序。
+
+## 已观察到的原版表现
+
+用当前目录的 DOSBox 启动简体版成功得到标题画面，窗口标题显示 `Program: STAROPEN`，画面为 640×480 的像素风人物合照和“带着梦想一起去飞越”标题。截图证据为 `analysis_original_dosbox.png`。
+
+这确认发行包本身在 Windows + DOSBox 环境可启动，但不等同于浏览器可以直接执行 EXE。浏览器无法加载 PE/DOS 可执行文件，必须提供 x86/DOS WebAssembly 运行时和虚拟文件系统，或重建游戏逻辑。
+
+## 网页端改造方案
+
+### 已实现：Web Edition 核心循环
+
+`index.html` 是无构建依赖的静态页面，使用原生 HTML/CSS/JavaScript。当前实现包括：
+
+- 经营状态：日期、资金、体力、心情、知名度、歌唱/演技/仪态；
+- 行动：歌唱训练、演技训练、仪态训练、广告通告、试镜、休息；
+- 行动结果：属性增减、粉丝与资金变化、体力消耗、事件日志；
+- 日程：未来五天可查看，每天推进后记录当日结果；
+- 事件：按日期和随机权重触发机会、采访、粉丝增长和疲劳反馈；
+- 持久化：`localStorage` 保存三个存档槽，支持保存、加载和重置；
+- 响应式：桌面三栏布局，窄屏自动改为纵向布局；
+- 原版参考画面：使用本地启动截图作为视觉锚点，不把截图伪装成可交互原版画面。
+
+### 已实现：原版 WebAssembly 兼容层
+
+`compat.html` 加载项目内的 js-dos 8.4.1、`wdosbox-x.js` 与 `wdosbox-x.wasm`。`compat/build-static-assets.ps1` 从两套原始目录生成 `compat/static-assets.js`，GitHub Pages artifact 通过该索引读取 18 个文件，并以 `{ path, contents }` 形式注入虚拟文件系统；随后提供与 `STAR1_CHS.conf`/`STAR1_CHT.conf` 一致的 `autoexec`：挂载当前目录、切换语言目录、执行 `STAROPEN.EXE`。这样避免浏览器 bundle 解压兼容差异和运行时外部网络依赖。
+
+兼容页通过 js-dos 的 `ci-ready` 事件取得 `CommandInterface`。启动前从 `stardream-original-save-v1` 读取对应语言的 `STARSAVE.SSS` 覆盖初始文件；用户点击“保存存档”或停止兼容层时，通过 `fsReadFile` 读取运行中的文件并写回 IndexedDB。简体和繁体使用不同 key，避免互相覆盖。
+
+### 后续：兼容层存档与资源优化
+
+后续工作：
+
+1. 为 640×480 画布增加移动端触摸映射，并验证像素整数缩放和 4:3 画幅。
+2. 首次加载后把对应语言目录的原始文件缓存到 Cache Storage，减少重复加载。
+3. 增加原版存档导出/导入，并处理浏览器私有模式或存储配额不足的提示。
+4. 对 `.ARB/.MKB` 保持“原版只读”策略，除非已取得可验证的解码规则；网页端不直接编辑二进制资源。
+5. 以标题页、开档、日程推进、存档/读档、音频播放、窗口失焦恢复为完整验收用例。
+
+### 主要风险
+
+- 没有源码和资源格式说明，无法证明重建逻辑与原版公式完全一致；
+- js-dos 运行时为 GPL-2.0-only，分发兼容模式时必须保留 `THIRD_PARTY_NOTICES.md` 并遵守对应源代码提供义务；
+- IndexedDB 存档依赖浏览器持久化权限，当前尚未提供跨浏览器导出/导入；
+- 私有资源包需要在浏览器中整体加载，移动端首屏和内存预算需要单独验证；
+- 语言差异不止 UI 文案，`STARFON.MKB`/`STARFONA.MKB` 的差异需要在兼容层中保留；
+- 当前网页端使用本地生成的界面和原版标题截图，尚未抽取原始 ARB 图片为 WebP/PNG。
+
+## 验收结论
+
+当前目录已具备两种可用形态：
+
+1. 原版：运行根目录 `DOS Game Launch.exe`，依赖 Windows DOSBox；
+2. 原版兼容模式：启动静态服务器后打开 `compat.html`，浏览器中由 DOSBox-X WASM 启动原始 DOS 程序；
+3. 网页版：启动静态服务器后打开根目录 `index.html`，无需 Node/Python/构建工具即可运行核心经营循环。
+
+三种形态共享同一产品主题和关键经营语义；`index.html` 是可持续改造的经营重建层，`compat.html` 是原始二进制验证入口。

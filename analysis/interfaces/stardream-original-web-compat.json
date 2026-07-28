@@ -1,0 +1,27 @@
+{
+  "id": "stardream.original_web_compat",
+  "type": "module",
+  "summary": "Browser compatibility page that boots the original DOS program with js-dos 8.4.1, direct local filesystem injection, and a static-host-safe embedded asset bridge",
+  "entry_points": ["compat.html", "window.StarDreamCompat"],
+  "runtime": {
+    "library": "js-dos",
+    "version": "8.4.1",
+    "license": "GPL-2.0-only",
+    "backend": "wdosbox-x.wasm"
+  },
+  "resource_sets": ["STAR_CHS", "STAR_CHT"],
+  "evidence": ["compat.html", "compat/static-assets.js", "compat/build-static-assets.ps1", "compat/runtime/emulators/wdosbox-x.js", "compat/runtime/emulators/wdosbox-x.wasm", "THIRD_PARTY_NOTICES.md"],
+  "save_contract": {
+    "database": "stardream-original-save-v1",
+    "key": "STARSAVE.SSS:<STAR_CHS|STAR_CHT>",
+    "restore": "replace the selected initFs STARSAVE.SSS contents before DOSBox-X starts",
+    "write": "read the running virtual file through CommandInterface.fsReadFile and write it to IndexedDB"
+  },
+  "deployment": {
+    "channel": "GitHub Pages via GitHub Actions",
+    "artifact": "publish-github.ps1 generates a self-contained static directory",
+    "compatibility": "compat/static-assets.js embeds the selected original files and DOSBox-X resources, then intercepts fetch and XMLHttpRequest in memory",
+    "verified": "the local artifact boots CHS/CHT to a 640x480 canvas"
+  },
+  "remaining_risk": "There is no save export/import UI yet; browser private-mode or storage eviction can still remove local saves."
+}

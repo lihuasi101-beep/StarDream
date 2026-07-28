@@ -1,0 +1,11 @@
+{
+  "id": "stardream.original_launch",
+  "type": "flow",
+  "summary": "Windows launcher -> DOSBox -> STAROPEN -> STARDOM",
+  "evidence": [
+    "STAR1_CHS.conf: [autoexec] mounts the package root and starts STAR_CHS/STAROPEN.EXE",
+    "STAR_CHS/STAROPEN.EXE contains resource filename references",
+    "analysis_original_dosbox.png records the running DOSBox title screen"
+  ],
+  "web_implication": "A browser build needs a DOS WebAssembly runtime or a rebuilt logic layer."
+}

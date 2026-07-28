@@ -1,0 +1,77 @@
+{
+  "workspace": "StarDream",
+  "version": 1,
+  "interfaces": [
+    {
+      "id": "stardream.original_launch",
+      "type": "flow",
+      "responsibility": "从 Windows 启动器进入简体/繁体 DOS 游戏主体",
+      "entry_points": ["DOS Game Launch.exe", "STAR_CHS/STAROPEN.EXE", "STAR_CHT/STAROPEN.EXE"],
+      "source_files": ["STAR1_CHS.conf", "STAR1_CHT.conf", "setting.txt"],
+      "index_files": [],
+      "config_tables": [],
+      "depends_on": ["dosbox-0.74-3", "stardom-exe"],
+      "diagnostics": ["analysis/technical-decomposition.md", "analysis_original_dosbox.png"],
+      "key_evidence": [
+        {"source": "STAR1_CHS.conf", "line": 181, "detail": "autoexec mount c . -freesize 1024"},
+        {"source": "STAR1_CHS.conf", "line": 185, "detail": "cd STAR_CHS"},
+        {"source": "STAR1_CHS.conf", "line": 186, "detail": "STAROPEN.EXE"},
+        {"source": "STAR_CHS/STAROPEN.EXE", "offset": "0x03714", "detail": "references STARDOM.MKB and related resource files"}
+      ]
+    },
+    {
+      "id": "stardream.resource_archives",
+      "type": "config",
+      "responsibility": "按小端偏移索引切分 ARB/MKB 私有资源块",
+      "entry_points": ["STAR_CHS/STARARJ.ARB", "STAR_CHS/STARMAP.ARB", "STAR_CHS/MODELALL.ARB"],
+      "source_files": ["STAR_CHS/*.ARB", "STAR_CHS/*.MKB", "STAR_CHS/INSTW.DAT", "STAR_CHS/CDROM01.DAT"],
+      "index_files": [],
+      "config_tables": [],
+      "depends_on": ["stardream.original_launch"],
+      "diagnostics": ["analysis/technical-decomposition.md"],
+      "key_evidence": [
+        {"source": "STAR_CHS/STARARJ.ARB", "offset": "0x00", "detail": "little-endian entry count 220"},
+        {"source": "STAR_CHS/STARMAP.ARB", "offset": "0x00", "detail": "little-endian entry count 252"},
+        {"source": "STAR_CHS/MODELALL.ARB", "offset": "0x00", "detail": "little-endian entry count 588"}
+      ]
+    },
+    {
+      "id": "stardream.web_core_loop",
+      "type": "module",
+      "responsibility": "提供无需构建工具的网页端明星经营核心循环",
+      "entry_points": ["index.html", "window.StarDreamWeb"],
+      "source_files": ["index.html"],
+      "index_files": ["analysis/workspace_knowledge_index.json"],
+      "config_tables": [],
+      "depends_on": ["stardream.original_launch"],
+      "diagnostics": ["analysis/technical-decomposition.md"],
+      "key_evidence": [
+        {"source": "index.html", "line": 1, "detail": "static web entry"},
+        {"source": "index.html", "line": 591, "detail": "action state resolution"},
+        {"source": "index.html", "line": 654, "detail": "browser API and entry initialization"}
+      ]
+    },
+    {
+      "id": "stardream.original_web_compat",
+      "type": "module",
+        "responsibility": "在浏览器中以 js-dos WebAssembly 逐文件加载原始 DOS 发行包",
+        "entry_points": ["compat.html", "window.StarDreamCompat"],
+        "source_files": ["compat.html", "compat/static-assets.js", "compat/build-static-assets.ps1", "compat/runtime/js-dos.js", "compat/runtime/js-dos.css", "compat/runtime/emulators/emulators.js", "compat/runtime/emulators/wdosbox-x.js", "compat/runtime/emulators/wdosbox-x.wasm", "compat/runtime/emulators/wlibzip.js", "compat/runtime/emulators/wlibzip.wasm", "THIRD_PARTY_NOTICES.md"],
+        "index_files": ["STAR_CHS/STAROPEN.EXE", "STAR_CHT/STAROPEN.EXE"],
+      "config_tables": [],
+      "depends_on": ["stardream.original_launch", "js-dos-8.4.1"],
+      "diagnostics": ["analysis/technical-decomposition.md", "THIRD_PARTY_NOTICES.md"],
+      "key_evidence": [
+        {"source": "compat.html", "line": 1, "detail": "original compatibility entry"},
+          {"source": "compat.html", "line": 191, "detail": "selected language files are injected into initFs"},
+          {"source": "compat.html", "line": 198, "detail": "DOSBox-X is selected as the emulation backend"},
+          {"source": "compat.html", "line": 159, "detail": "the running STARSAVE.SSS file is read from the virtual filesystem"},
+          {"source": "compat.html", "line": 162, "detail": "the current language save is persisted to IndexedDB"},
+          {"source": "compat.html", "line": 61, "detail": "the static-host-safe asset bridge loads before js-dos"},
+          {"source": "compat/build-static-assets.ps1", "line": 143, "detail": "the embedded resource reader is generated from the original files and DOSBox-X assets"},
+          {"source": "publish-github.ps1", "line": 71, "detail": "the GitHub Pages artifact is assembled without legacy publishing metadata"},
+          {"source": ".github/workflows/deploy-pages.yml", "line": 34, "detail": "GitHub Actions uploads the generated Pages artifact"}
+      ]
+    }
+  ]
+}

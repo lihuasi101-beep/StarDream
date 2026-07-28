@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172237">
+  <title>STAR DREAM / Web Edition</title>
+  <style>
+    :root {
+      --ink: #172237;
+      --ink-soft: #27344c;
+      --paper: #f7efd9;
+      --paper-dim: #ded5bf;
+      --teal: #5cd6c0;
+      --teal-deep: #238e8e;
+      --coral: #ed675c;
+      --yellow: #f4c858;
+      --lilac: #c9b9ec;
+      --blue: #7ea9df;
+      --white: #fffdf4;
+      --line: rgba(247, 239, 217, .16);
+      --shadow: 0 18px 34px rgba(6, 12, 25, .24);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-width: 320px; background: var(--ink); }
+
+    body {
+      margin: 0;
+      color: var(--paper);
+      background: var(--ink);
+      font-family: "Trebuchet MS", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+
+    button, input { font: inherit; letter-spacing: 0; }
+
+    button {
+      border: 0;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
+
+    .app-shell {
+      min-height: 100vh;
+      background-color: var(--ink);
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .025) 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+
+    .topbar {
+      min-height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 16px clamp(18px, 4vw, 60px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(23, 34, 55, .94);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 43px;
+      height: 43px;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      background: var(--yellow);
+      border: 3px solid var(--paper);
+      box-shadow: 4px 4px 0 var(--coral);
+      font-size: 23px;
+      font-weight: 900;
+      transform: rotate(-4deg);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-family: Georgia, serif;
+      font-size: clamp(19px, 2.4vw, 29px);
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .brand p {
+      margin: 6px 0 0;
+      color: var(--teal);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.6px;
+    }
+
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+
+    .top-button,
+    .save-button {
+      min-height: 37px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      background: var(--ink-soft);
+      color: var(--paper);
+      font-size: 12px;
+      transition: border-color .2s, background .2s, transform .2s;
+    }
+
+    .top-button:hover, .save-button:hover { border-color: var(--teal); background: #31405c; transform: translateY(-2px); }
+
+    .top-button .glyph, .save-button .glyph { color: var(--yellow); margin-right: 6px; }
+
+    main { width: min(1440px, 100%); margin: 0 auto; padding: 24px clamp(18px, 4vw, 60px) 46px; }
+
+    .summary-strip {
+      display: grid;
+      grid-template-columns: 1.35fr repeat(5, 1fr);
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+
+    .summary-card {
+      min-height: 79px;
+      padding: 12px 14px;
+      border-top: 3px solid var(--teal);
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: var(--shadow);
+    }
+
+    .summary-card:first-child { border-top-color: var(--coral); background: var(--coral); color: var(--white); }
+    .summary-label { display: block; color: var(--teal-deep); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+    .summary-card:first-child .summary-label { color: #ffe7ca; }
+    .summary-value { display: block; margin-top: 6px; font-family: Georgia, serif; font-size: 25px; line-height: 1; }
+    .summary-card small { display: block; margin-top: 8px; font-size: 10px; opacity: .72; }
+
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: minmax(214px, .72fr) minmax(360px, 1.5fr) minmax(276px, .92fr);
+      align-items: start;
+      gap: 14px;
+    }
+
+    .workspace-grid > section { min-width: 0; }
+
+    .panel {
+      border: 1px solid rgba(247, 239, 217, .22);
+      background: rgba(39, 52, 76, .92);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-heading {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 15px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-heading h2 { margin: 0; color: var(--paper); font-size: 13px; letter-spacing: 1.2px; text-transform: uppercase; }
+    .panel-heading .eyebrow { color: var(--teal); font-size: 10px; }
+
+    .profile-panel { overflow: hidden; }
+
+    .profile-header {
+      padding: 17px 15px 15px;
+      background: var(--lilac);
+      color: var(--ink);
+      border-bottom: 4px solid var(--ink);
+    }
+
+    .profile-header .role { color: #6b4c89; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+    .profile-header h2 { margin: 5px 0 2px; font-family: Georgia, serif; font-size: 25px; }
+    .profile-header p { margin: 0; font-size: 12px; opacity: .75; }
+
+    .profile-body { padding: 14px 15px 16px; }
+
+    .profile-line { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 10px; color: var(--paper-dim); font-size: 11px; }
+    .profile-line strong { color: var(--paper); font-weight: 700; }
+
+    .meter-row { margin: 15px 0; }
+    .meter-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; color: var(--paper-dim); font-size: 11px; }
+    .meter-label strong { color: var(--paper); }
+    .meter { height: 7px; background: rgba(0, 0, 0, .3); overflow: hidden; }
+    .meter-fill { height: 100%; width: 0; transition: width .45s ease; }
+    .meter-fill.teal { background: var(--teal); }
+    .meter-fill.coral { background: var(--coral); }
+    .meter-fill.yellow { background: var(--yellow); }
+    .meter-fill.lilac { background: var(--lilac); }
+
+    .goal-box {
+      margin-top: 18px;
+      padding: 12px;
+      border-left: 3px solid var(--yellow);
+      background: rgba(23, 34, 55, .55);
+    }
+
+    .goal-box h3 { margin: 0 0 9px; color: var(--yellow); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    .goal-list { display: grid; gap: 8px; }
+    .goal-item { display: flex; align-items: flex-start; gap: 7px; color: var(--paper-dim); font-size: 11px; line-height: 1.4; }
+    .goal-item::before { content: "□"; color: var(--teal); font-size: 15px; line-height: 12px; }
+    .goal-item.done { color: var(--teal); text-decoration: line-through; }
+    .goal-item.done::before { content: "■"; }
+
+    .stage-panel { min-width: 0; background: var(--paper); color: var(--ink); }
+    .stage-screen { position: relative; min-height: 364px; background: #070b13; overflow: hidden; }
+    .stage-screen img { display: block; width: 100%; height: 364px; object-fit: cover; object-position: center center; image-rendering: auto; filter: saturate(.92) contrast(1.04); }
+    .stage-screen::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgba(23, 34, 55, .12) 4px); }
+    .scene-badge, .scene-time { position: absolute; z-index: 1; top: 14px; padding: 7px 9px; color: var(--ink); font-size: 10px; font-weight: 900; letter-spacing: 1px; }
+    .scene-badge { left: 14px; background: var(--yellow); }
+    .scene-time { right: 14px; background: var(--paper); }
+    .scene-caption { position: absolute; z-index: 1; right: 15px; bottom: 14px; left: 15px; padding: 9px 11px; color: var(--white); border-left: 4px solid var(--coral); background: rgba(23, 34, 55, .88); }
+    .scene-caption strong { display: block; font-family: Georgia, serif; font-size: 17px; }
+    .scene-caption span { display: block; margin-top: 4px; color: var(--teal); font-size: 10px; }
+
+    .feed-section { padding: 15px; background: var(--paper); }
+    .feed-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 9px; }
+    .feed-header h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; }
+    .feed-header span { color: var(--teal-deep); font-size: 10px; }
+    .event-feed { display: grid; gap: 7px; max-height: 128px; overflow: auto; }
+    .feed-entry { display: grid; grid-template-columns: 40px 1fr; gap: 9px; align-items: start; padding: 8px 0; border-top: 1px solid rgba(23, 34, 55, .13); color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+    .feed-entry time { color: var(--teal-deep); font-weight: 900; }
+    .feed-entry strong { color: var(--coral); }
+
+    .calendar-panel { margin-top: 14px; padding: 14px; background: var(--ink-soft); }
+    .calendar-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .calendar-top h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .calendar-top small { color: var(--teal); font-size: 10px; }
+    .calendar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .day-card { min-height: 67px; padding: 9px 7px; text-align: left; border: 1px solid var(--line); background: rgba(23, 34, 55, .65); color: var(--paper-dim); transition: border-color .2s, transform .2s, background .2s; }
+    .day-card:hover { border-color: var(--teal); transform: translateY(-2px); }
+    .day-card.current { border-color: var(--yellow); background: #384963; color: var(--white); }
+    .day-card.selected { box-shadow: inset 0 -3px 0 var(--coral); }
+    .day-number { display: block; color: var(--teal); font-size: 10px; font-weight: 900; }
+    .day-card.current .day-number { color: var(--yellow); }
+    .day-label { display: block; margin-top: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+
+    .action-panel { overflow: hidden; }
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+    .tab { min-height: 44px; background: transparent; color: var(--paper-dim); font-size: 11px; border-bottom: 3px solid transparent; }
+    .tab.active { color: var(--yellow); border-bottom-color: var(--yellow); background: rgba(23, 34, 55, .28); }
+    .tab-panel { padding: 14px; }
+    .tab-panel[hidden] { display: none; }
+    .action-list { display: grid; gap: 8px; }
+    .action-card { width: 100%; display: grid; grid-template-columns: 34px 1fr auto; gap: 9px; align-items: center; min-height: 58px; padding: 9px; text-align: left; border: 1px solid var(--line); background: rgba(23, 34, 55, .44); transition: border-color .2s, background .2s, transform .2s; }
+    .action-card:hover, .action-card.selected { border-color: var(--teal); background: #31405c; transform: translateX(3px); }
+    .action-icon { width: 30px; height: 30px; display: grid; place-items: center; color: var(--ink); background: var(--teal); font-weight: 900; }
+    .action-card:nth-child(2) .action-icon, .action-card:nth-child(5) .action-icon { background: var(--lilac); }
+    .action-card:nth-child(3) .action-icon, .action-card:nth-child(6) .action-icon { background: var(--yellow); }
+    .action-title { display: block; color: var(--paper); font-size: 12px; font-weight: 800; }
+    .action-subtitle { display: block; margin-top: 4px; color: var(--paper-dim); font-size: 10px; }
+    .action-cost { color: var(--yellow); font-size: 10px; text-align: right; white-space: nowrap; }
+    .action-detail { margin-top: 14px; padding: 12px; border-left: 3px solid var(--coral); background: rgba(23, 34, 55, .55); }
+    .action-detail h3 { margin: 0; color: var(--white); font-size: 14px; }
+    .action-detail p { min-height: 31px; margin: 6px 0 10px; color: var(--paper-dim); font-size: 11px; line-height: 1.45; }
+    .detail-meta { display: flex; flex-wrap: wrap; gap: 7px; color: var(--teal); font-size: 10px; }
+    .detail-meta span { padding: 4px 6px; background: rgba(92, 214, 192, .1); }
+    .primary-action { width: 100%; min-height: 39px; margin-top: 12px; background: var(--coral); color: var(--white); font-size: 12px; font-weight: 900; transition: background .2s, transform .2s; }
+    .primary-action:hover { background: #fa7a67; transform: translateY(-2px); }
+
+    .goal-board { display: grid; gap: 10px; }
+    .goal-board h3, .archive-panel h3 { margin: 0; color: var(--yellow); font-size: 13px; }
+    .goal-board p, .archive-panel p { margin: 7px 0 0; color: var(--paper-dim); font-size: 11px; line-height: 1.55; }
+    .goal-progress { height: 9px; margin-top: 14px; background: rgba(0, 0, 0, .28); }
+    .goal-progress span { display: block; height: 100%; width: 0; background: var(--teal); transition: width .45s; }
+    .goal-milestones { display: grid; gap: 7px; margin-top: 14px; }
+    .milestone { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 7px; border-bottom: 1px solid var(--line); color: var(--paper-dim); font-size: 11px; }
+    .milestone strong { color: var(--paper); }
+
+    .archive-panel { display: grid; gap: 13px; }
+    .archive-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border: 1px solid var(--line); image-rendering: auto; }
+    .archive-note { padding: 10px; border-left: 3px solid var(--teal); background: rgba(23, 34, 55, .48); color: var(--paper-dim); font-size: 10px; line-height: 1.55; }
+
+    .footer-bar { display: flex; justify-content: space-between; gap: 16px; margin-top: 14px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--paper-dim); font-size: 10px; }
+    .footer-bar strong { color: var(--teal); }
+
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 20; max-width: min(360px, calc(100vw - 44px)); padding: 12px 14px; border-left: 4px solid var(--yellow); background: var(--paper); color: var(--ink); box-shadow: var(--shadow); font-size: 12px; transform: translateY(20px); opacity: 0; pointer-events: none; transition: opacity .22s, transform .22s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 1080px) {
+      .summary-strip { grid-template-columns: repeat(3, 1fr); }
+      .summary-card:first-child { grid-column: span 3; }
+      .workspace-grid { grid-template-columns: minmax(205px, .7fr) minmax(360px, 1.3fr); }
+      .action-panel { grid-column: span 2; }
+      .action-list { grid-template-columns: repeat(2, 1fr); }
+      .action-detail { grid-column: span 2; }
+    }
+
+    @media (max-width: 720px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .top-actions { width: 100%; }
+      .top-button, .save-button { flex: 1; }
+      main { padding-top: 15px; }
+      .summary-strip { grid-template-columns: repeat(2, 1fr); }
+      .summary-card:first-child { grid-column: span 2; }
+      .workspace-grid { display: flex; flex-direction: column; }
+      .workspace-grid > section { width: 100%; }
+      .profile-panel, .stage-panel, .calendar-panel, .action-panel { width: 100%; }
+      .stage-screen, .stage-screen img { min-height: 250px; height: 250px; }
+      .action-panel { order: 3; }
+      .action-list { grid-template-columns: 1fr; }
+      .action-detail { grid-column: auto; }
+      .calendar { overflow-x: auto; grid-template-columns: repeat(5, minmax(90px, 1fr)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">★</div>
+        <div>
+          <h1>STAR DREAM</h1>
+          <p>Web Edition / core management loop</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="top-button" id="sound-toggle" type="button" title="切换界面音效"><span class="glyph">♫</span><span id="sound-label">音效开</span></button>
+        <button class="save-button" id="save-button" type="button" title="保存当前进度"><span class="glyph">◆</span>保存</button>
+        <button class="top-button" id="reset-button" type="button" title="重置本地进度"><span class="glyph">↺</span>重置</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="summary-strip" aria-label="经营状态">
+        <div class="summary-card"><span class="summary-label">当前周目</span><span class="summary-value" id="date-value">第 1 天</span><small id="date-subvalue">星期一 / 早晨</small></div>
+        <div class="summary-card"><span class="summary-label">资金</span><span class="summary-value" id="money-value">12,000</span><small>NT$ 事务余额</small></div>
+        <div class="summary-card"><span class="summary-label">粉丝</span><span class="summary-value" id="fans-value">120</span><small>稳定增长中</small></div>
+        <div class="summary-card"><span class="summary-label">体力</span><span class="summary-value" id="stamina-value">78</span><small>每日恢复 14</small></div>
+        <div class="summary-card"><span class="summary-label">心情</span><span class="summary-value" id="mood-value">72</span><small>工作状态良好</small></div>
+        <div class="summary-card"><span class="summary-label">知名度</span><span class="summary-value" id="fame-value">8</span><small>距离出道还有一段</small></div>
+      </section>
+
+      <section class="workspace-grid">
+        <aside class="panel profile-panel">
+          <div class="profile-header">
+            <span class="role">artist file / 001</span>
+            <h2>林小满</h2>
+            <p>新人艺人 · 梦想起点</p>
+          </div>
+          <div class="profile-body">
+            <p class="profile-line"><span>事务所</span><strong>星梦经纪</strong></p>
+            <p class="profile-line"><span>本周排程</span><strong id="planned-count">0 / 5</strong></p>
+            <div class="meter-row"><div class="meter-label"><span>歌唱</span><strong id="vocal-value">26</strong></div><div class="meter"><div class="meter-fill teal" id="vocal-meter"></div></div></div>
+            <div class="meter-row"><div class="meter-label"><span>演技</span><strong id="acting-value">21</strong></div><div class="meter"><div class="meter-fill coral" id="acting-meter"></div></div></div>
+            <div class="meter-row"><div class="meter-label"><span>仪态</span><strong id="appearance-value">19</strong></div><div class="meter"><div class="meter-fill yellow" id="appearance-meter"></div></div></div>
+            <div class="goal-box">
+              <h3>本周目标</h3>
+              <div class="goal-list">
+                <div class="goal-item" id="goal-one">完成 3 次训练</div>
+                <div class="goal-item" id="goal-two">接下 1 份公开通告</div>
+                <div class="goal-item" id="goal-three">知名度达到 12</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section>
+          <div class="panel stage-panel">
+            <div class="stage-screen">
+              <img src="analysis_original_dosbox.png" alt="原版 DOSBox 标题画面参考">
+              <span class="scene-badge">ON AIR / WEB BUILD</span>
+              <span class="scene-time" id="scene-time">DAY 01 · 09:00</span>
+              <div class="scene-caption"><strong id="scene-title">梦想的第一步</strong><span id="scene-subtitle">今天要把什么写进日程？</span></div>
+            </div>
+            <div class="feed-section">
+              <div class="feed-header"><h2>事务日志</h2><span id="log-count">0 entries</span></div>
+              <div class="event-feed" id="event-feed"></div>
+            </div>
+          </div>
+          <div class="panel calendar-panel">
+            <div class="calendar-top"><h2>接下来五天</h2><small id="calendar-note">选择日期查看安排</small></div>
+            <div class="calendar" id="calendar"></div>
+          </div>
+        </section>
+
+        <aside class="panel action-panel">
+          <div class="tabs" role="tablist" aria-label="工作台区域">
+            <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="actions">工作台</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="goals">目标</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="archive">原版资料</button>
+          </div>
+          <div class="tab-panel" id="tab-actions">
+            <div class="panel-heading" style="padding:0 0 11px;border-bottom:0;min-height:0"><h2>今日行动</h2><span class="eyebrow" id="planning-label">第 1 天</span></div>
+            <div class="action-list" id="action-list"></div>
+            <div class="action-detail" id="action-detail"></div>
+          </div>
+          <div class="tab-panel" id="tab-goals" hidden>
+            <div class="goal-board">
+              <h3>星梦新人企划</h3>
+              <p>用一周时间让新人从练习室走到第一次公开舞台。</p>
+              <div class="goal-progress"><span id="goal-progress-fill"></span></div>
+              <div class="goal-milestones"><div class="milestone"><span>训练完成</span><strong id="goal-training-count">0 / 3</strong></div><div class="milestone"><span>公开通告</span><strong id="goal-work-count">0 / 1</strong></div><div class="milestone"><span>知名度</span><strong id="goal-fame-count">8 / 12</strong></div></div>
+            </div>
+          </div>
+          <div class="tab-panel" id="tab-archive" hidden>
+            <div class="archive-panel">
+              <h3>原版启动参考</h3>
+              <img class="archive-thumb" src="analysis_original_dosbox.png" alt="《明星志愿一》原版启动画面">
+              <p>发行包由 DOSBox 0.74-3 启动，原始资源位于 `STAR_CHS` / `STAR_CHT`，网页层暂采用本地重建逻辑。</p>
+              <div class="archive-note">原版兼容层的接入点：DOS WebAssembly、虚拟磁盘、IndexedDB 存档和 640×480 画布。</div>
+              <a class="primary-action" href="compat.html" style="display:grid;place-items:center;text-decoration:none">启动原版兼容模式</a>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="footer-bar"><span><strong>STAR DREAM / WEB EDITION</strong> · local playable build</span><span id="save-status">未保存</span></footer>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const STORAGE_KEY = "stardream-web-save-v1";
+      const WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
+      const ACTIONS = {
+        vocal: { icon: "♫", title: "歌唱训练", subtitle: "发声与节奏课", cost: "体力 -14", stamina: -14, mood: -2, money: -180, fame: 0, fans: 0, stat: "vocal", statDelta: 4, text: "稳定音准，把副歌唱得更远。" },
+        acting: { icon: "✦", title: "演技训练", subtitle: "台词与情绪课", cost: "体力 -16", stamina: -16, mood: -1, money: -220, fame: 0, fans: 0, stat: "acting", statDelta: 4, text: "把角色的情绪先放进自己的眼睛。" },
+        appearance: { icon: "◆", title: "仪态训练", subtitle: "镜头与舞台课", cost: "体力 -12", mood: 0, money: -160, fame: 0, fans: 0, stat: "appearance", statDelta: 4, text: "站姿和目光，会先替艺人说话。" },
+        commercial: { icon: "▣", title: "广告通告", subtitle: "饮料品牌平面拍摄", cost: "体力 -20", stamina: -20, mood: 4, money: 2400, fame: 2, fans: 45, stat: "appearance", statDelta: 1, text: "第一次面对商业镜头，片场灯光比想象中更热。" },
+        audition: { icon: "◎", title: "公开试镜", subtitle: "新人剧组开放选角", cost: "体力 -24", stamina: -24, mood: -3, money: 600, fame: 3, fans: 60, stat: "acting", statDelta: 2, text: "试镜名单很长，但你留下了一个清楚的自我介绍。" },
+        rest: { icon: "○", title: "休息恢复", subtitle: "回家整理心情", cost: "体力 +20", stamina: 20, mood: 8, money: 0, fame: 0, fans: 0, stat: null, statDelta: 0, text: "把明天的力气留给明天。" }
+      };
+
+      const DEFAULT_STATE = {
+        day: 1,
+        money: 12000,
+        fans: 120,
+        stamina: 78,
+        mood: 72,
+        fame: 8,
+        vocal: 26,
+        acting: 21,
+        appearance: 19,
+        selectedAction: "vocal",
+        planningDay: 1,
+        schedule: {},
+        trainingCount: 0,
+        workCount: 0,
+        history: [
+          { day: 1, html: "事务所把一张空白周计划放到桌上。" },
+          { day: 1, html: "制作人：<strong>先让她养成规律工作。</strong>" }
+        ],
+        sound: true,
+        savedAt: null
+      };
+
+      const clone = (value) => JSON.parse(JSON.stringify(value));
+      let state = loadState() || clone(DEFAULT_STATE);
+      let toastTimer = null;
+
+      const $ = (id) => document.getElementById(id);
+      const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+      const fmt = (value) => new Intl.NumberFormat("zh-CN").format(Math.round(value));
+      const actionForDay = (day) => state.schedule[String(day)] || null;
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return null;
+          return Object.assign(clone(DEFAULT_STATE), JSON.parse(raw));
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function persist(message = "已自动保存") {
+        state.savedAt = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        $("save-status").textContent = `${message} · ${state.savedAt}`;
+      }
+
+      function notify(message) {
+        const toast = $("toast");
+        toast.textContent = message;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+      }
+
+      function addLog(text) {
+        state.history.unshift({ day: state.day, html: text });
+        state.history = state.history.slice(0, 10);
+      }
+
+      function renderState() {
+        $("date-value").textContent = `第 ${state.day} 天`;
+        $("date-subvalue").textContent = `${WEEKDAYS[(state.day - 1) % 7]} / ${state.stamina > 60 ? "早晨" : state.stamina > 30 ? "午后" : "夜晚"}`;
+        $("money-value").textContent = fmt(state.money);
+        $("fans-value").textContent = fmt(state.fans);
+        $("stamina-value").textContent = state.stamina;
+        $("mood-value").textContent = state.mood;
+        $("fame-value").textContent = state.fame;
+        ["vocal", "acting", "appearance"].forEach((key) => {
+          $(`${key}-value`).textContent = state[key];
+          $(`${key}-meter`).style.width = `${clamp(state[key], 0, 100)}%`;
+        });
+        const scheduled = Object.keys(state.schedule).filter((day) => Number(day) >= state.day && Number(day) < state.day + 5).length;
+        $("planned-count").textContent = `${scheduled} / 5`;
+        $("scene-time").textContent = `DAY ${String(state.day).padStart(2, "0")} · ${state.stamina > 60 ? "09:00" : "14:00"}`;
+        $("planning-label").textContent = `第 ${state.planningDay} 天`;
+        $("log-count").textContent = `${state.history.length} entries`;
+        $("sound-label").textContent = state.sound ? "音效开" : "音效关";
+        $("save-status").textContent = state.savedAt ? `本地存档 · ${state.savedAt}` : "未保存";
+        renderGoals();
+        renderCalendar();
+        renderFeed();
+        renderActions();
+      }
+
+      function renderFeed() {
+        $("event-feed").innerHTML = state.history.map((item) => `<div class="feed-entry"><time>D${String(item.day).padStart(2, "0")}</time><div>${item.html}</div></div>`).join("");
+      }
+
+      function renderCalendar() {
+        const cards = [];
+        for (let i = 0; i < 5; i += 1) {
+          const day = state.day + i;
+          const planned = actionForDay(day);
+          const title = planned ? ACTIONS[planned].title : day === state.day ? "待安排" : "空白日程";
+          cards.push(`<button class="day-card ${day === state.day ? "current" : ""} ${day === state.planningDay ? "selected" : ""}" type="button" data-day="${day}"><span class="day-number">D${String(day).padStart(2, "0")} · ${WEEKDAYS[(day - 1) % 7]}</span><span class="day-label">${title}</span></button>`);
+        }
+        $("calendar").innerHTML = cards.join("");
+        $("calendar").querySelectorAll("[data-day]").forEach((button) => button.addEventListener("click", () => {
+          state.planningDay = Number(button.dataset.day);
+          renderState();
+          notify(`已查看第 ${state.planningDay} 天的日程`);
+        }));
+      }
+
+      function renderActions() {
+        $("action-list").innerHTML = Object.entries(ACTIONS).map(([id, action]) => `<button class="action-card ${id === state.selectedAction ? "selected" : ""}" type="button" data-action="${id}"><span class="action-icon" aria-hidden="true">${action.icon}</span><span><span class="action-title">${action.title}</span><span class="action-subtitle">${action.subtitle}</span></span><span class="action-cost">${action.cost}</span></button>`).join("");
+        $("action-list").querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => {
+          state.selectedAction = button.dataset.action;
+          renderActions();
+        }));
+        const selected = ACTIONS[state.selectedAction];
+        const plannedText = state.planningDay === state.day ? "执行并进入下一天" : `安排到第 ${state.planningDay} 天`;
+        $("action-detail").innerHTML = `<h3>${selected.title}</h3><p>${selected.text}</p><div class="detail-meta"><span>${selected.cost}</span><span>${selected.money >= 0 ? "+" : ""}${fmt(selected.money)} 资金</span><span>${selected.fame ? `+${selected.fame} 知名度` : "整理状态"}</span></div><button class="primary-action" id="confirm-action" type="button">${plannedText}</button>`;
+        $("confirm-action").addEventListener("click", confirmAction);
+      }
+
+      function renderGoals() {
+        const trainingDone = state.trainingCount >= 3;
+        const workDone = state.workCount >= 1;
+        const fameDone = state.fame >= 12;
+        $("goal-one").classList.toggle("done", trainingDone);
+        $("goal-two").classList.toggle("done", workDone);
+        $("goal-three").classList.toggle("done", fameDone);
+        $("goal-training-count").textContent = `${Math.min(state.trainingCount, 3)} / 3`;
+        $("goal-work-count").textContent = `${Math.min(state.workCount, 1)} / 1`;
+        $("goal-fame-count").textContent = `${state.fame} / 12`;
+        const progress = ((Math.min(state.trainingCount, 3) / 3) + (Math.min(state.workCount, 1)) + (fameDone ? 1 : state.fame / 12)) / 3 * 100;
+        $("goal-progress-fill").style.width = `${progress}%`;
+      }
+
+      function confirmAction() {
+        const actionId = state.selectedAction;
+        if (state.planningDay > state.day) {
+          state.schedule[String(state.planningDay)] = actionId;
+          persist("已保存日程");
+          renderState();
+          notify(`第 ${state.planningDay} 天已安排：${ACTIONS[actionId].title}`);
+          return;
+        }
+        state.schedule[String(state.day)] = actionId;
+        resolveAction(actionId);
+      }
+
+      function resolveAction(actionId) {
+        const action = ACTIONS[actionId];
+        state.stamina = clamp(state.stamina + (action.stamina || 0), 0, 100);
+        state.mood = clamp(state.mood + (action.mood || 0), 0, 100);
+        state.money = Math.max(0, state.money + (action.money || 0));
+        state.fame = clamp(state.fame + (action.fame || 0), 0, 100);
+        state.fans = Math.max(0, state.fans + (action.fans || 0));
+        if (action.stat) state[action.stat] = clamp(state[action.stat] + action.statDelta, 0, 100);
+        if (["vocal", "acting", "appearance"].includes(actionId)) state.trainingCount += 1;
+        if (["commercial", "audition"].includes(actionId)) state.workCount += 1;
+        addLog(`<strong>${action.title}</strong>：${action.text}`);
+        resolveEvent(actionId);
+        state.day += 1;
+        state.planningDay = state.day;
+        if (state.stamina <= 18) addLog("身体发出疲劳信号，下一天适合安排休息。");
+        if (state.day % 7 === 1) {
+          state.stamina = clamp(state.stamina + 14, 0, 100);
+          state.mood = clamp(state.mood + 5, 0, 100);
+          addLog("新的一周开始，事务所送来了一束小小的庆祝花束。");
+        }
+        delete state.schedule[String(state.day - 1)];
+        persist("已自动保存");
+        renderState();
+        notify(`${action.title}完成，进入第 ${state.day} 天`);
+      }
+
+      function resolveEvent(actionId) {
+        const roll = (state.day * 29 + actionId.length * 17 + state.fame) % 100;
+        if (roll < 22 && actionId !== "rest") {
+          state.fans += 12;
+          state.mood = clamp(state.mood + 3, 0, 100);
+          addLog("街角有人认出了你，今天多了 12 位新粉丝。");
+        } else if (roll > 86 && actionId !== "rest") {
+          state.mood = clamp(state.mood - 7, 0, 100);
+          addLog("连续工作让状态下降，明天需要留出恢复时间。");
+        } else if (state.day % 4 === 0) {
+          state.fame = clamp(state.fame + 1, 0, 100);
+          addLog("事务所周报：本周曝光累积，知名度小幅上升。");
+        }
+      }
+
+      function resetState() {
+        if (!window.confirm("确定重置本地 Web Edition 进度吗？")) return;
+        state = clone(DEFAULT_STATE);
+        localStorage.removeItem(STORAGE_KEY);
+        $("save-status").textContent = "未保存";
+        renderState();
+        notify("已回到星梦第一天");
+      }
+
+      function bindTabs() {
+        document.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => {
+          const tabName = button.dataset.tab;
+          document.querySelectorAll("[data-tab]").forEach((item) => { item.classList.toggle("active", item === button); item.setAttribute("aria-selected", item === button ? "true" : "false"); });
+          ["actions", "goals", "archive"].forEach((name) => { $(`tab-${name}`).hidden = name !== tabName; });
+        }));
+      }
+
+      $("save-button").addEventListener("click", () => { persist("已保存"); notify("进度已写入本地存档"); });
+      $("reset-button").addEventListener("click", resetState);
+      $("sound-toggle").addEventListener("click", () => { state.sound = !state.sound; persist("设置已保存"); renderState(); notify(state.sound ? "界面音效已开启" : "界面音效已关闭"); });
+      bindTabs();
+      renderState();
+      window.StarDreamWeb = { getState: () => clone(state), reset: resetState, resolveAction };
+    })();
+  </script>
+</body>
+</html>

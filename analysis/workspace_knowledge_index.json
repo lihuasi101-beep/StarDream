@@ -1,0 +1,24 @@
+{
+  "workspace": "StarDream",
+  "scope": "当前工作区内的《明星志愿一》发行包拆解与网页端重建",
+  "updated_at": "2026-07-28",
+  "entrypoints": {
+    "report": "analysis/technical-decomposition.md",
+    "registry": "analysis/analysis_interface_registry.json",
+    "facts": "analysis/facts.jsonl",
+    "web": "index.html",
+    "web_compat": "compat.html",
+    "original_runtime": "DOS Game Launch.exe",
+    "github_workflow": ".github/workflows/deploy-pages.yml",
+    "github_publish_script": "publish-github.ps1",
+    "github_publish_guide": "GITHUB_PAGES.md"
+  },
+  "interfaces": [
+    "analysis/interfaces/stardream-original-launch.json",
+    "analysis/interfaces/stardream-resource-archives.json",
+    "analysis/interfaces/stardream-web-core-loop.json",
+    "analysis/interfaces/stardream-original-web-compat.json"
+  ],
+  "validation": "analysis/validate_analysis_index.ps1",
+  "evidence_policy": "优先使用当前工作区文件、配置行、二进制偏移和本地运行截图；未确认内容标记为风险或后续工作。"
+}

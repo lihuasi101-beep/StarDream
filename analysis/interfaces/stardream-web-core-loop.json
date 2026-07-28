@@ -1,0 +1,9 @@
+{
+  "id": "stardream.web_core_loop",
+  "type": "module",
+  "summary": "Static browser implementation of the management loop",
+  "entry_points": ["index.html", "window.StarDreamWeb"],
+  "features": ["status", "actions", "events", "calendar", "save/load", "responsive-ui"],
+  "evidence": ["index.html"],
+  "web_implication": "Can be served by any static file server and does not require Node, Python, or a build step."
+}

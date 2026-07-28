@@ -1,0 +1,3 @@
+:S
+@STAROPEN
+GOTO S

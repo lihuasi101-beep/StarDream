@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STAR DREAM / Original Compatibility</title>
+  <link rel="stylesheet" href="compat/runtime/js-dos.css">
+  <style>
+    :root { --ink:#172237; --ink-soft:#27344c; --paper:#f7efd9; --teal:#5cd6c0; --coral:#ed675c; --yellow:#f4c858; --line:rgba(247,239,217,.2); }
+    * { box-sizing:border-box; }
+    html, body { min-height:100%; margin:0; background:var(--ink); color:var(--paper); font-family:"Trebuchet MS","Microsoft YaHei",sans-serif; letter-spacing:0; }
+    body { background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size:22px 22px; }
+    button, select { font:inherit; letter-spacing:0; }
+    button { border:0; cursor:pointer; }
+    button:disabled { cursor:not-allowed; opacity:.45; }
+    .compat-shell { width:min(1180px,100%); margin:0 auto; padding:22px clamp(16px,4vw,54px) 44px; }
+    .compat-header { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+    .compat-title { display:flex; align-items:center; gap:12px; }
+    .mark { width:42px; height:42px; display:grid; place-items:center; color:var(--ink); background:var(--yellow); border:3px solid var(--paper); box-shadow:4px 4px 0 var(--coral); font-size:22px; font-weight:900; transform:rotate(-4deg); }
+    h1 { margin:0; font-family:Georgia,serif; font-size:clamp(22px,3vw,35px); line-height:1; }
+    .eyebrow { margin:7px 0 0; color:var(--teal); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; }
+    .back-link { padding:9px 11px; color:var(--paper); border:1px solid var(--line); background:var(--ink-soft); font-size:11px; text-decoration:none; }
+    .back-link:hover { border-color:var(--teal); }
+    .control-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:18px 0 12px; }
+    .control-bar label { color:var(--paper-dim,#ded5bf); font-size:11px; }
+    select { min-height:37px; padding:0 28px 0 10px; border:1px solid var(--line); background:var(--ink-soft); color:var(--paper); }
+    .control-button { min-height:37px; padding:0 13px; color:var(--ink); background:var(--teal); font-size:11px; font-weight:900; }
+    .control-button.stop { color:var(--paper); background:var(--coral); }
+    .control-button.save { color:var(--ink); background:var(--yellow); }
+    .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
+    .emulator-frame { min-height:calc(min(70vw, 640px) + 92px); padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); }
+    #dosbox { width:100%; height:min(70vw,640px); min-height:360px; background:#000; }
+    #dosbox canvas { image-rendering:pixelated; }
+    .compat-note { display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin-top:12px; }
+    .note { padding:12px; border-top:3px solid var(--teal); background:var(--ink-soft); color:#ded5bf; font-size:11px; line-height:1.55; }
+    .note strong { color:var(--paper); }
+    code { color:var(--yellow); font-family:Consolas,monospace; }
+    @media (max-width:700px) { .compat-header { flex-direction:column; } .back-link { align-self:stretch; text-align:center; } .compat-note { grid-template-columns:1fr; } #dosbox { min-height:280px; } .emulator-frame { min-height:calc(70vw + 92px); padding:8px; } }
+  </style>
+</head>
+<body>
+  <main class="compat-shell">
+    <header class="compat-header">
+      <div class="compat-title"><div class="mark" aria-hidden="true">★</div><div><h1>STAR DREAM</h1><p class="eyebrow">Original binary / WebAssembly compatibility</p></div></div>
+      <a class="back-link" href="index.html">← 返回 Web Edition</a>
+    </header>
+    <section class="control-bar" aria-label="兼容模式控制">
+      <label for="language">语言包</label>
+      <select id="language"><option value="chs">简体中文 / STAR_CHS</option><option value="cht">繁體中文 / STAR_CHT</option></select>
+      <button class="control-button" id="launch" type="button">▶ 启动原版</button>
+      <button class="control-button save" id="save-original" type="button" disabled>◆ 保存存档</button>
+      <button class="control-button stop" id="stop" type="button" disabled>■ 停止</button>
+      <div class="status" id="status" role="status" aria-live="polite">兼容层待启动 · DOSBox-X WebAssembly 8.4.1</div>
+    </section>
+    <section class="emulator-frame"><div id="dosbox"></div></section>
+    <section class="compat-note">
+      <div class="note"><strong>运行链路</strong><br>浏览器 → js-dos → DOSBox-X WASM → 虚拟文件系统 → <code>STAROPEN.EXE</code> → <code>STARDOM.EXE</code></div>
+      <div class="note"><strong>存档边界</strong><br><code>STARSAVE.SSS</code> 会按语言包保存到浏览器 IndexedDB；启动原版时自动恢复，点击“保存存档”或停止兼容层时写回。</div>
+    </section>
+  </main>
+  <script src="compat/static-assets.js"></script>
+  <script src="compat/runtime/js-dos.js"></script>
+  <script>
+    (() => {
+      const status = document.getElementById("status");
+      const launch = document.getElementById("launch");
+      const saveOriginalButton = document.getElementById("save-original");
+      const stop = document.getElementById("stop");
+      const language = document.getElementById("language");
+      const host = document.getElementById("dosbox");
+      let player = null;
+      let commandInterface = null;
+      let currentFolder = "";
+      const SAVE_DB_NAME = "stardream-original-save-v1";
+      const SAVE_STORE_NAME = "saves";
+      if (new URLSearchParams(window.location.search).get("lang") === "cht") language.value = "cht";
+      const ORIGINAL_FILES = [
+        "BOWLING.ARB", "CDROM01.DAT", "INST.CFG", "INSTW.DAT", "MODELALL.ARB", "OPDANCE.ARB",
+        "PLAY.BAT", "STARARJ.ARB", "STARDOM.EXE", "STARDOM.MKB", "STARFON.MKB", "STARFONA.MKB",
+        "STARMAP.ARB", "STARMUSA.MKB", "STAROPEN.ARB", "STAROPEN.EXE", "STARSA00.SSS", "STARSAVE.SSS"
+      ];
+      const DOSBOX_CONFIG = `[sdl]
+fullscreen=false
+fulldouble=false
+fullresolution=original
+windowresolution=original
+output=surface
+autolock=false
+usescancodes=true
+[dosbox]
+machine=svga_s3
+memsize=2
+[render]
+frameskip=0
+aspect=true
+scaler=none
+[cpu]
+core=auto
+cycles=auto 20000 50% limit 50000
+[mixer]
+nosound=false
+rate=44100
+[sblaster]
+sbtype=sb16
+sbbase=220
+irq=7
+dma=1
+hdma=5
+[speaker]
+pcspeaker=true
+[dos]
+xms=true
+ems=false
+umb=true
+keyboardlayout=none
+[autoexec]
+mount c . -freesize 1024
+c:
+cd STAR_CHS
+STAROPEN.EXE
+exit`;
+
+      function saveKey(folder) { return `STARSAVE.SSS:${folder}`; }
+
+      function openSaveDb() {
+        return new Promise((resolve, reject) => {
+          if (!window.indexedDB) { reject(new Error("当前浏览器不支持 IndexedDB")); return; }
+          const request = indexedDB.open(SAVE_DB_NAME, 1);
+          request.onupgradeneeded = () => request.result.createObjectStore(SAVE_STORE_NAME);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error("IndexedDB 打开失败"));
+        });
+      }
+
+      async function readStoredSave(folder) {
+        const db = await openSaveDb();
+        return new Promise((resolve, reject) => {
+          const request = db.transaction(SAVE_STORE_NAME, "readonly").objectStore(SAVE_STORE_NAME).get(saveKey(folder));
+          request.onsuccess = () => resolve(request.result ? new Uint8Array(request.result) : null);
+          request.onerror = () => reject(request.error || new Error("IndexedDB 读取失败"));
+        }).finally(() => db.close());
+      }
+
+      async function writeStoredSave(folder, bytes) {
+        const db = await openSaveDb();
+        return new Promise((resolve, reject) => {
+          const request = db.transaction(SAVE_STORE_NAME, "readwrite").objectStore(SAVE_STORE_NAME).put(bytes.buffer, saveKey(folder));
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error || new Error("IndexedDB 写入失败"));
+        }).finally(() => db.close());
+      }
+
+      async function saveOriginalSave(showStatus = true) {
+        if (!commandInterface || !currentFolder) {
+          if (showStatus) setStatus("原版存档尚未就绪 · 请先启动兼容层");
+          return false;
+        }
+        try {
+          if (showStatus) setStatus(`正在读取原版存档 · ${currentFolder}`);
+          const readPromise = commandInterface.fsReadFile(`${currentFolder}/STARSAVE.SSS`);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("虚拟文件读取超时")), 8000));
+          const bytes = new Uint8Array(await Promise.race([readPromise, timeoutPromise]));
+          await writeStoredSave(currentFolder, bytes);
+          if (showStatus) setStatus(`原版存档已保存 · ${currentFolder} · ${bytes.byteLength} bytes`);
+          return true;
+        } catch (error) {
+          if (showStatus) setStatus(`原版存档保存失败 · ${error.message || error}`);
+          return false;
+        }
+      }
+
+      function setStatus(text) { status.textContent = text; }
+
+      async function launchOriginal() {
+        if (player) return;
+        const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
+        currentFolder = folder;
+        commandInterface = null;
+        saveOriginalButton.disabled = true;
+        host.innerHTML = "";
+        setStatus("正在加载原始资源和 DOSBox WebAssembly…");
+        try {
+          let storedSave = null;
+          try { storedSave = await readStoredSave(folder); } catch (error) { setStatus(`本地存档不可用 · ${error.message || error}`); }
+          const initFs = [];
+          for (let index = 0; index < ORIGINAL_FILES.length; index += 1) {
+            const file = ORIGINAL_FILES[index];
+            setStatus(`正在加载原始资源 ${index + 1}/${ORIGINAL_FILES.length} · ${file}`);
+            const response = await window.STAR_DREAM_STATIC_ASSETS.read(`${folder}/${file}`);
+            if (!response.ok) throw new Error(`原始资源加载失败 (${response.status}) · ${file}`);
+            const contents = file === "STARSAVE.SSS" && storedSave ? storedSave : new Uint8Array(await response.arrayBuffer());
+            initFs.push({ path: `${folder}/${file}`, contents });
+          }
+          const config = DOSBOX_CONFIG.replace("STAR_CHS", language.value === "cht" ? "STAR_CHT" : "STAR_CHS");
+          player = Dos(host, {
+            dosboxConf: config,
+            initFs,
+            pathPrefix: "compat/runtime/emulators/",
+            backend: "dosboxX",
+            onEvent: (event, argument) => {
+              if (event === "ci-ready" && argument && typeof argument.fsReadFile === "function") {
+                commandInterface = argument;
+                saveOriginalButton.disabled = false;
+                setStatus(storedSave ? "原版兼容层已启动 · 已恢复浏览器存档" : "原版兼容层已启动 · 可保存原版存档");
+              }
+            },
+            imageRendering: "pixelated",
+            renderAspect: true,
+            autoStart: true
+          });
+          launch.disabled = true;
+          language.disabled = true;
+          stop.disabled = false;
+          setStatus("原版兼容层已启动 · 等待 STAROPEN.EXE 输出画面");
+        } catch (error) {
+          player = null;
+          commandInterface = null;
+          currentFolder = "";
+          saveOriginalButton.disabled = true;
+          setStatus(`启动失败 · ${error.message || error}`);
+        }
+      }
+
+      async function stopOriginal() {
+        if (!player) return;
+        await saveOriginalSave(false);
+        try { await player.stop(); } catch (error) { setStatus(`停止时出现异常 · ${error.message || error}`); }
+        player = null;
+        commandInterface = null;
+        currentFolder = "";
+        host.innerHTML = "";
+        launch.disabled = false;
+        language.disabled = false;
+        saveOriginalButton.disabled = true;
+        stop.disabled = true;
+        setStatus("兼容层已停止 · DOSBox-X WebAssembly 8.4.1");
+      }
+
+      launch.addEventListener("click", launchOriginal);
+      saveOriginalButton.addEventListener("click", () => { saveOriginalSave(true); });
+      stop.addEventListener("click", stopOriginal);
+      window.StarDreamCompat = { launch: launchOriginal, save: saveOriginalSave, stop: stopOriginal };
+      if (new URLSearchParams(window.location.search).get("autostart") === "1") setTimeout(launchOriginal, 80);
+    })();
+  </script>
+</body>
+</html>

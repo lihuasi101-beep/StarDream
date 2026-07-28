@@ -1,0 +1,7 @@
+# GitHub Pages build output and generated publishing snapshots.
+github-pages-build*/
+sites/
+.aioa/
+compat/bundles/
+stderr.txt
+stdout.txt

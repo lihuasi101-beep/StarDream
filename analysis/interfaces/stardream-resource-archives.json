@@ -1,0 +1,11 @@
+{
+  "id": "stardream.resource_archives",
+  "type": "config",
+  "summary": "ARB/MKB packages contain little-endian offset tables and encoded blocks",
+  "evidence": [
+    "STAR_CHS/STARARJ.ARB offset 0x00 = 220 entries; first block offset 0x8A2A",
+    "STAR_CHS/STARMAP.ARB offset 0x00 = 252 entries; first block offset 0x03FE",
+    "STAR_CHS/MODELALL.ARB offset 0x00 = 588 entries; first block offset 0x0C24"
+  ],
+  "web_implication": "Do not expose these files as standard media. Keep them in a virtual disk for emulation or decode them offline."
+}
