@@ -34,7 +34,7 @@ $assetBuilder = Join-Path $publishProjectRoot 'compat/build-static-assets.ps1'
 $assetOutput = Join-Path $publishProjectRoot 'compat/static-assets.js'
 if ($PSScriptRoot) {
   & $assetBuilder -OutputPath $assetOutput
-  if ($LASTEXITCODE -ne 0) { throw "Static asset generation failed" }
+  if (-not $?) { throw "Static asset generation failed" }
 } else {
   $builderText = [System.IO.File]::ReadAllText($assetBuilder)
   Invoke-Expression $builderText
