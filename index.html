@@ -147,6 +147,29 @@
     .summary-value { display: block; margin-top: 6px; font-family: Georgia, serif; font-size: 25px; line-height: 1; }
     .summary-card small { display: block; margin-top: 8px; font-size: 10px; opacity: .72; }
 
+    .mission-strip {
+      display: grid;
+      grid-template-columns: minmax(180px, .72fr) minmax(260px, 1.6fr) minmax(190px, .85fr);
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 14px;
+      padding: 13px 15px;
+      border-left: 4px solid var(--yellow);
+      background: rgba(39, 52, 76, .92);
+      box-shadow: var(--shadow);
+    }
+
+    .mission-strip small, .mission-strip h2, .mission-strip p { margin: 0; }
+    .mission-strip small { color: var(--teal); font-size: 10px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+    .mission-strip strong { display: block; margin-top: 6px; color: var(--paper); font-family: Georgia, serif; font-size: 18px; }
+    .mission-copy { padding-left: 14px; border-left: 1px solid var(--line); }
+    .mission-copy h2 { color: var(--yellow); font-size: 14px; }
+    .mission-copy p { margin-top: 6px; color: var(--paper-dim); font-size: 11px; line-height: 1.5; }
+    .mission-progress-label { display: flex; justify-content: space-between; gap: 10px; color: var(--paper-dim); font-size: 10px; }
+    .mission-progress-label strong { margin: 0; color: var(--teal); font-family: inherit; font-size: 10px; }
+    .mission-progress { height: 8px; margin-top: 8px; background: rgba(0, 0, 0, .3); }
+    .mission-progress span { display: block; width: 0; height: 100%; background: var(--yellow); transition: width .45s ease; }
+
     .workspace-grid {
       display: grid;
       grid-template-columns: minmax(214px, .72fr) minmax(360px, 1.5fr) minmax(276px, .92fr);
@@ -270,8 +293,11 @@
     .action-detail p { min-height: 31px; margin: 6px 0 10px; color: var(--paper-dim); font-size: 11px; line-height: 1.45; }
     .detail-meta { display: flex; flex-wrap: wrap; gap: 7px; color: var(--teal); font-size: 10px; }
     .detail-meta span { padding: 4px 6px; background: rgba(92, 214, 192, .1); }
+    .detail-requirement { margin-top: 9px; color: var(--yellow); font-size: 10px; line-height: 1.45; }
+    .detail-requirement.ready { color: var(--teal); }
     .primary-action { width: 100%; min-height: 39px; margin-top: 12px; background: var(--coral); color: var(--white); font-size: 12px; font-weight: 900; transition: background .2s, transform .2s; }
     .primary-action:hover { background: #fa7a67; transform: translateY(-2px); }
+    .primary-action:disabled { cursor: not-allowed; background: #6d7180; color: var(--paper-dim); transform: none; }
 
     .goal-board { display: grid; gap: 10px; }
     .goal-board h3, .archive-panel h3 { margin: 0; color: var(--yellow); font-size: 13px; }
@@ -308,6 +334,8 @@
       main { padding-top: 15px; }
       .summary-strip { grid-template-columns: repeat(2, 1fr); }
       .summary-card:first-child { grid-column: span 2; }
+      .mission-strip { grid-template-columns: 1fr; gap: 10px; }
+      .mission-copy { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); padding-top: 10px; }
       .workspace-grid { display: flex; flex-direction: column; }
       .workspace-grid > section { width: 100%; }
       .profile-panel, .stage-panel, .calendar-panel, .action-panel { width: 100%; }
@@ -350,6 +378,21 @@
         <div class="summary-card"><span class="summary-label">知名度</span><span class="summary-value" id="fame-value">8</span><small>距离出道还有一段</small></div>
       </section>
 
+      <section class="mission-strip" aria-label="当前企划目标">
+        <div>
+          <small>当前企划</small>
+          <strong id="chapter-label">第 1 章 · 新人出道企划</strong>
+        </div>
+        <div class="mission-copy">
+          <h2 id="mission-title">先把第一份履历做出来</h2>
+          <p id="mission-copy">先完成训练，再接下一份公开工作。每天只能推进一项行动。</p>
+        </div>
+        <div>
+          <div class="mission-progress-label"><span id="mission-progress-label">企划进度</span><strong id="mission-progress-value">0%</strong></div>
+          <div class="mission-progress"><span id="mission-progress-fill"></span></div>
+        </div>
+      </section>
+
       <section class="workspace-grid">
         <aside class="panel profile-panel">
           <div class="profile-header">
@@ -359,15 +402,16 @@
           </div>
           <div class="profile-body">
             <p class="profile-line"><span>事务所</span><strong>星梦经纪</strong></p>
-            <p class="profile-line"><span>本周排程</span><strong id="planned-count">0 / 5</strong></p>
+            <p class="profile-line"><span>本周计划</span><strong id="planned-count">0 / 5</strong></p>
+            <p class="profile-line"><span>本周结算</span><strong id="week-result">待结算</strong></p>
             <div class="meter-row"><div class="meter-label"><span>歌唱</span><strong id="vocal-value">26</strong></div><div class="meter"><div class="meter-fill teal" id="vocal-meter"></div></div></div>
             <div class="meter-row"><div class="meter-label"><span>演技</span><strong id="acting-value">21</strong></div><div class="meter"><div class="meter-fill coral" id="acting-meter"></div></div></div>
             <div class="meter-row"><div class="meter-label"><span>仪态</span><strong id="appearance-value">19</strong></div><div class="meter"><div class="meter-fill yellow" id="appearance-meter"></div></div></div>
             <div class="goal-box">
-              <h3>本周目标</h3>
+              <h3 id="week-goal-title">第 1 周目标</h3>
               <div class="goal-list">
                 <div class="goal-item" id="goal-one">完成 3 次训练</div>
-                <div class="goal-item" id="goal-two">接下 1 份公开通告</div>
+                <div class="goal-item" id="goal-two">成功完成 1 份工作</div>
                 <div class="goal-item" id="goal-three">知名度达到 12</div>
               </div>
             </div>
@@ -405,12 +449,13 @@
             <div class="action-detail" id="action-detail"></div>
           </div>
           <div class="tab-panel" id="tab-goals" hidden>
-            <div class="goal-board">
-              <h3>星梦新人企划</h3>
-              <p>用一周时间让新人从练习室走到第一次公开舞台。</p>
-              <div class="goal-progress"><span id="goal-progress-fill"></span></div>
-              <div class="goal-milestones"><div class="milestone"><span>训练完成</span><strong id="goal-training-count">0 / 3</strong></div><div class="milestone"><span>公开通告</span><strong id="goal-work-count">0 / 1</strong></div><div class="milestone"><span>知名度</span><strong id="goal-fame-count">8 / 12</strong></div></div>
-            </div>
+             <div class="goal-board">
+               <h3 id="goal-board-title">星梦新人企划</h3>
+               <p id="goal-board-copy">用一周时间让新人从练习室走到第一次公开舞台。</p>
+               <div class="goal-progress"><span id="goal-progress-fill"></span></div>
+               <div class="goal-milestones"><div class="milestone"><span>训练完成</span><strong id="goal-training-count">0 / 3</strong></div><div class="milestone"><span>成功工作</span><strong id="goal-work-count">0 / 1</strong></div><div class="milestone"><span>知名度</span><strong id="goal-fame-count">8 / 12</strong></div></div>
+               <div class="goal-milestones"><div class="milestone"><span>企划期限</span><strong id="chapter-deadline">剩余 28 天</strong></div><div class="milestone"><span>粉丝目标</span><strong id="chapter-fans-count">120 / 500</strong></div><div class="milestone"><span>能力目标</span><strong id="chapter-stat-count">26 / 40</strong></div></div>
+             </div>
           </div>
           <div class="tab-panel" id="tab-archive" hidden>
             <div class="archive-panel">
@@ -435,12 +480,18 @@
 
       const STORAGE_KEY = "stardream-web-save-v1";
       const WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
+      const CHAPTERS = [
+        { title: "新人出道企划", copy: "在期限内做出第一份能拿上台面的新人履历。", days: 28, work: 3, fansGain: 380, stat: 40, rewardMoney: 6000, rewardFans: 120 },
+        { title: "站稳第一舞台", copy: "把一次好运变成稳定的曝光，争取成为事务所的正式主力。", days: 35, work: 5, fansGain: 800, stat: 55, rewardMoney: 10000, rewardFans: 260 }
+      ];
       const ACTIONS = {
         vocal: { icon: "♫", title: "歌唱训练", subtitle: "发声与节奏课", cost: "体力 -14", stamina: -14, mood: -2, money: -180, fame: 0, fans: 0, stat: "vocal", statDelta: 4, text: "稳定音准，把副歌唱得更远。" },
         acting: { icon: "✦", title: "演技训练", subtitle: "台词与情绪课", cost: "体力 -16", stamina: -16, mood: -1, money: -220, fame: 0, fans: 0, stat: "acting", statDelta: 4, text: "把角色的情绪先放进自己的眼睛。" },
-        appearance: { icon: "◆", title: "仪态训练", subtitle: "镜头与舞台课", cost: "体力 -12", mood: 0, money: -160, fame: 0, fans: 0, stat: "appearance", statDelta: 4, text: "站姿和目光，会先替艺人说话。" },
-        commercial: { icon: "▣", title: "广告通告", subtitle: "饮料品牌平面拍摄", cost: "体力 -20", stamina: -20, mood: 4, money: 2400, fame: 2, fans: 45, stat: "appearance", statDelta: 1, text: "第一次面对商业镜头，片场灯光比想象中更热。" },
-        audition: { icon: "◎", title: "公开试镜", subtitle: "新人剧组开放选角", cost: "体力 -24", stamina: -24, mood: -3, money: 600, fame: 3, fans: 60, stat: "acting", statDelta: 2, text: "试镜名单很长，但你留下了一个清楚的自我介绍。" },
+        appearance: { icon: "◆", title: "仪态训练", subtitle: "镜头与舞台课", cost: "体力 -12", stamina: -12, mood: 0, money: -160, fame: 0, fans: 0, stat: "appearance", statDelta: 4, text: "站姿和目光，会先替艺人说话。" },
+        commercial: { icon: "▣", title: "广告通告", subtitle: "饮料品牌平面拍摄", cost: "体力 -20", stamina: -20, mood: 4, money: 2400, fame: 2, fans: 45, stat: "appearance", statDelta: 1, text: "第一次面对商业镜头，片场灯光比想象中更热。", work: { stat: "appearance", minStat: 18, minFame: 8, baseChance: 72 } },
+        audition: { icon: "◎", title: "公开试镜", subtitle: "新人剧组开放选角", cost: "体力 -24", stamina: -24, mood: -3, money: 600, fame: 3, fans: 60, stat: "acting", statDelta: 2, text: "试镜名单很长，但你留下了一个清楚的自我介绍。", work: { stat: "acting", minStat: 20, minFame: 10, baseChance: 56 } },
+        recording: { icon: "♫", title: "唱片录音", subtitle: "单曲录音企划", cost: "体力 -28", stamina: -28, mood: -4, money: 3200, fame: 4, fans: 90, stat: "vocal", statDelta: 3, text: "录音室的红灯亮起，你终于有机会把自己的声音留下来。", work: { stat: "vocal", minStat: 34, minFame: 18, minWeek: 3, baseChance: 55 } },
+        drama: { icon: "✦", title: "电视剧演出", subtitle: "八点档新人配角", cost: "体力 -30", stamina: -30, mood: -6, money: 4200, fame: 5, fans: 140, stat: "acting", statDelta: 3, text: "镜头不会等人，现场表现决定你能不能留下来。", work: { stat: "acting", minStat: 34, minFame: 18, minWeek: 3, baseChance: 50 } },
         rest: { icon: "○", title: "休息恢复", subtitle: "回家整理心情", cost: "体力 +20", stamina: 20, mood: 8, money: 0, fame: 0, fans: 0, stat: null, statDelta: 0, text: "把明天的力气留给明天。" }
       };
 
@@ -459,6 +510,19 @@
         schedule: {},
         trainingCount: 0,
         workCount: 0,
+        schemaVersion: 2,
+        week: 1,
+        weekStartDay: 1,
+        weekTrainingCount: 0,
+        weekWorkCount: 0,
+        weekFameStart: 8,
+        weekFansStart: 120,
+        weeklyGoal: { training: 3, work: 1, fame: 12 },
+        weeklyResult: null,
+        chapter: 1,
+        chapterStartDay: 1,
+        chapterStartFans: 120,
+        chapterWorkCount: 0,
         history: [
           { day: 1, html: "事务所把一张空白周计划放到桌上。" },
           { day: 1, html: "制作人：<strong>先让她养成规律工作。</strong>" }
@@ -468,7 +532,27 @@
       };
 
       const clone = (value) => JSON.parse(JSON.stringify(value));
-      let state = loadState() || clone(DEFAULT_STATE);
+      const bestStat = (value) => Math.max(value.vocal || 0, value.acting || 0, value.appearance || 0);
+      const currentWeekNumber = (day) => Math.floor((Math.max(1, day) - 1) / 7) + 1;
+      const chapterConfig = () => {
+        const base = CHAPTERS[Math.min(Math.max(0, state.chapter - 1), CHAPTERS.length - 1)];
+        if (state.chapter <= CHAPTERS.length) return base;
+        const extra = state.chapter - CHAPTERS.length;
+        return Object.assign({}, base, {
+          title: `第 ${state.chapter} 章 · ${extra % 2 ? "扩大曝光企划" : "主力艺人企划"}`,
+          days: base.days + extra * 7,
+          work: base.work + extra,
+          fansGain: base.fansGain + extra * 260,
+          stat: base.stat + extra * 5,
+          rewardMoney: base.rewardMoney + extra * 2500,
+          rewardFans: base.rewardFans + extra * 80
+        });
+      };
+      const makeWeeklyGoal = (week, fameStart) => ({
+        training: week >= 3 ? 4 : 3,
+        work: week >= 4 ? 2 : 1,
+        fame: fameStart + (week >= 3 ? 5 : 4)
+      });
       let toastTimer = null;
 
       const $ = (id) => document.getElementById(id);
@@ -480,11 +564,31 @@
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
           if (!raw) return null;
-          return Object.assign(clone(DEFAULT_STATE), JSON.parse(raw));
+          const parsed = JSON.parse(raw);
+          const merged = Object.assign(clone(DEFAULT_STATE), parsed);
+          if (!Object.prototype.hasOwnProperty.call(parsed, "weekStartDay")) {
+            merged.week = currentWeekNumber(merged.day);
+            merged.weekStartDay = (merged.week - 1) * 7 + 1;
+            merged.weekTrainingCount = merged.trainingCount || 0;
+            merged.weekWorkCount = merged.workCount || 0;
+            merged.weekFameStart = Math.max(0, merged.fame - (merged.workCount || 0) * 2);
+            merged.weekFansStart = Math.max(0, merged.fans - (merged.workCount || 0) * 45);
+            merged.weeklyGoal = makeWeeklyGoal(merged.week, merged.weekFameStart);
+          }
+          if (!Object.prototype.hasOwnProperty.call(parsed, "chapterStartDay")) {
+            merged.chapter = 1;
+            merged.chapterStartDay = merged.day;
+            merged.chapterStartFans = merged.fans;
+            merged.chapterWorkCount = 0;
+          }
+          merged.schemaVersion = 2;
+          return merged;
         } catch (error) {
           return null;
         }
       }
+
+      let state = loadState() || clone(DEFAULT_STATE);
 
       function persist(message = "已自动保存") {
         state.savedAt = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
@@ -524,10 +628,45 @@
         $("log-count").textContent = `${state.history.length} entries`;
         $("sound-label").textContent = state.sound ? "音效开" : "音效关";
         $("save-status").textContent = state.savedAt ? `本地存档 · ${state.savedAt}` : "未保存";
+        $("week-result").textContent = state.weeklyResult ? `上周 ${state.weeklyResult}` : "进行中";
+        renderMission();
         renderGoals();
         renderCalendar();
         renderFeed();
         renderActions();
+      }
+
+      function weeklyGoalStatus() {
+        const goal = state.weeklyGoal;
+        return {
+          trainingDone: state.weekTrainingCount >= goal.training,
+          workDone: state.weekWorkCount >= goal.work,
+          fameDone: state.fame >= goal.fame
+        };
+      }
+
+      function weeklyNextStep() {
+        const goal = state.weeklyGoal;
+        if (state.weekTrainingCount < goal.training) return `先安排训练，还差 ${goal.training - state.weekTrainingCount} 次；训练会提升接工作的成功率。`;
+        if (state.weekWorkCount < goal.work) return `训练已经够了，去接一份当前门槛能完成的工作，才能拿到本周结算。`;
+        if (state.fame < goal.fame) return `本周工作已完成，再争取 ${goal.fame - state.fame} 点知名度，公开工作比休息更有效。`;
+        return "本周目标已完成。可以继续积累属性和粉丝，等待周报结算。";
+      }
+
+      function renderMission() {
+        const config = chapterConfig();
+        const elapsed = Math.max(0, state.day - state.chapterStartDay);
+        const remaining = Math.max(0, config.days - elapsed);
+        const fansTarget = state.chapterStartFans + config.fansGain;
+        const progress = ((Math.min(state.chapterWorkCount, config.work) / config.work) + (clamp((state.fans - state.chapterStartFans) / config.fansGain, 0, 1)) + (Math.min(bestStat(state), config.stat) / config.stat)) / 3 * 100;
+        $("chapter-label").textContent = `第 ${state.chapter} 章 · ${config.title}`;
+        $("mission-title").textContent = remaining === 0 ? "企划今天结算" : `距离企划结算还有 ${remaining} 天`;
+        $("mission-copy").textContent = `${weeklyNextStep()} ${config.copy}`;
+        $("mission-progress-label").textContent = `工作 ${Math.min(state.chapterWorkCount, config.work)} / ${config.work} · 粉丝 ${fmt(Math.max(0, state.fans - state.chapterStartFans))} / ${fmt(config.fansGain)}`;
+        $("mission-progress-value").textContent = `${Math.round(progress)}%`;
+        $("mission-progress-fill").style.width = `${progress}%`;
+        $("scene-title").textContent = remaining === 0 ? "企划结算日" : state.weekWorkCount < state.weeklyGoal.work ? "今天要接下哪份工作？" : "把今天写进成长曲线";
+        $("scene-subtitle").textContent = weeklyNextStep();
       }
 
       function renderFeed() {
@@ -550,6 +689,26 @@
         }));
       }
 
+      function actionRequirements(action) {
+        const missing = [];
+        if (action.work) {
+          const work = action.work;
+          if ((state[work.stat] || 0) < work.minStat) missing.push(`${work.stat === "vocal" ? "歌唱" : work.stat === "acting" ? "演技" : "仪态"} ${work.minStat}`);
+          if (state.fame < work.minFame) missing.push(`知名度 ${work.minFame}`);
+          if (work.minWeek && state.week < work.minWeek) missing.push(`第 ${work.minWeek} 周开放`);
+        }
+        if (state.stamina + (action.stamina || 0) < 0) missing.push("体力不足");
+        if (state.money + (action.money || 0) < 0) missing.push("资金不足");
+        return missing;
+      }
+
+      function actionRequirementText(action) {
+        if (!action.work) return "安排后会消耗当日资源，并在进入下一天时结算。";
+        const work = action.work;
+        const statName = work.stat === "vocal" ? "歌唱" : work.stat === "acting" ? "演技" : "仪态";
+        return `工作门槛：${statName} ${work.minStat} · 知名度 ${work.minFame}${work.minWeek ? ` · 第 ${work.minWeek} 周开放` : ""}`;
+      }
+
       function renderActions() {
         $("action-list").innerHTML = Object.entries(ACTIONS).map(([id, action]) => `<button class="action-card ${id === state.selectedAction ? "selected" : ""}" type="button" data-action="${id}"><span class="action-icon" aria-hidden="true">${action.icon}</span><span><span class="action-title">${action.title}</span><span class="action-subtitle">${action.subtitle}</span></span><span class="action-cost">${action.cost}</span></button>`).join("");
         $("action-list").querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => {
@@ -558,56 +717,156 @@
         }));
         const selected = ACTIONS[state.selectedAction];
         const plannedText = state.planningDay === state.day ? "执行并进入下一天" : `安排到第 ${state.planningDay} 天`;
-        $("action-detail").innerHTML = `<h3>${selected.title}</h3><p>${selected.text}</p><div class="detail-meta"><span>${selected.cost}</span><span>${selected.money >= 0 ? "+" : ""}${fmt(selected.money)} 资金</span><span>${selected.fame ? `+${selected.fame} 知名度` : "整理状态"}</span></div><button class="primary-action" id="confirm-action" type="button">${plannedText}</button>`;
+        const missing = actionRequirements(selected);
+        const ready = state.planningDay > state.day || missing.length === 0;
+        const requirementText = missing.length ? `当前还缺：${missing.join("、")}` : actionRequirementText(selected);
+        $("action-detail").innerHTML = `<h3>${selected.title}</h3><p>${selected.text}</p><div class="detail-meta"><span>${selected.cost}</span><span>${selected.money >= 0 ? "+" : ""}${fmt(selected.money)} 资金</span><span>${selected.fame ? `+${selected.fame} 知名度` : "不直接增加知名度"}</span></div><div class="detail-requirement ${missing.length ? "" : "ready"}">${requirementText}</div><button class="primary-action" id="confirm-action" type="button" ${ready ? "" : "disabled"}>${plannedText}</button>`;
         $("confirm-action").addEventListener("click", confirmAction);
       }
 
       function renderGoals() {
-        const trainingDone = state.trainingCount >= 3;
-        const workDone = state.workCount >= 1;
-        const fameDone = state.fame >= 12;
-        $("goal-one").classList.toggle("done", trainingDone);
-        $("goal-two").classList.toggle("done", workDone);
-        $("goal-three").classList.toggle("done", fameDone);
-        $("goal-training-count").textContent = `${Math.min(state.trainingCount, 3)} / 3`;
-        $("goal-work-count").textContent = `${Math.min(state.workCount, 1)} / 1`;
-        $("goal-fame-count").textContent = `${state.fame} / 12`;
-        const progress = ((Math.min(state.trainingCount, 3) / 3) + (Math.min(state.workCount, 1)) + (fameDone ? 1 : state.fame / 12)) / 3 * 100;
+        const goal = state.weeklyGoal;
+        const status = weeklyGoalStatus();
+        const config = chapterConfig();
+        const fansTarget = state.chapterStartFans + config.fansGain;
+        $("week-goal-title").textContent = `第 ${state.week} 周目标`;
+        $("goal-one").textContent = `完成 ${goal.training} 次训练`;
+        $("goal-two").textContent = `成功完成 ${goal.work} 份工作`;
+        $("goal-three").textContent = `知名度达到 ${goal.fame}`;
+        $("goal-one").classList.toggle("done", status.trainingDone);
+        $("goal-two").classList.toggle("done", status.workDone);
+        $("goal-three").classList.toggle("done", status.fameDone);
+        $("goal-training-count").textContent = `${Math.min(state.weekTrainingCount, goal.training)} / ${goal.training}`;
+        $("goal-work-count").textContent = `${Math.min(state.weekWorkCount, goal.work)} / ${goal.work}`;
+        $("goal-fame-count").textContent = `${state.fame} / ${goal.fame}`;
+        $("goal-board-title").textContent = `星梦新人企划 · 第 ${state.chapter} 章`;
+        $("goal-board-copy").textContent = `${config.copy} 当前行动建议：${weeklyNextStep()}`;
+        $("chapter-deadline").textContent = `剩余 ${Math.max(0, config.days - (state.day - state.chapterStartDay))} 天`;
+        $("chapter-fans-count").textContent = `${fmt(state.fans)} / ${fmt(fansTarget)}`;
+        $("chapter-stat-count").textContent = `${bestStat(state)} / ${config.stat}`;
+        const progress = ((Math.min(state.weekTrainingCount, goal.training) / goal.training) + (Math.min(state.weekWorkCount, goal.work) / goal.work) + (status.fameDone ? 1 : state.fame / goal.fame)) / 3 * 100;
         $("goal-progress-fill").style.width = `${progress}%`;
       }
 
       function confirmAction() {
         const actionId = state.selectedAction;
+        const action = ACTIONS[actionId];
+        if (!action) return;
+        if (state.planningDay === state.day) {
+          const missing = actionRequirements(action);
+          if (missing.length) {
+            notify(`暂时不能执行：${missing.join("、")}`);
+            return;
+          }
+        }
         if (state.planningDay > state.day) {
           state.schedule[String(state.planningDay)] = actionId;
           persist("已保存日程");
           renderState();
-          notify(`第 ${state.planningDay} 天已安排：${ACTIONS[actionId].title}`);
+          notify(`第 ${state.planningDay} 天已安排：${action.title}`);
           return;
         }
         state.schedule[String(state.day)] = actionId;
         resolveAction(actionId);
       }
 
-      function resolveAction(actionId) {
-        const action = ACTIONS[actionId];
-        state.stamina = clamp(state.stamina + (action.stamina || 0), 0, 100);
-        state.mood = clamp(state.mood + (action.mood || 0), 0, 100);
+      function applyActionRewards(action) {
         state.money = Math.max(0, state.money + (action.money || 0));
         state.fame = clamp(state.fame + (action.fame || 0), 0, 100);
         state.fans = Math.max(0, state.fans + (action.fans || 0));
         if (action.stat) state[action.stat] = clamp(state[action.stat] + action.statDelta, 0, 100);
-        if (["vocal", "acting", "appearance"].includes(actionId)) state.trainingCount += 1;
-        if (["commercial", "audition"].includes(actionId)) state.workCount += 1;
-        addLog(`<strong>${action.title}</strong>：${action.text}`);
-        resolveEvent(actionId);
+      }
+
+      function resolveWork(actionId) {
+        const action = ACTIONS[actionId];
+        const work = action.work;
+        const skill = state[work.stat] || 0;
+        const chance = clamp(work.baseChance + Math.max(0, skill - work.minStat) * 3 + Math.floor(state.mood / 20) + Math.floor(state.fame / 12), 35, 96);
+        const roll = (state.day * 19 + actionId.length * 7 + skill * 5 + state.fame * 3) % 100;
+        return { success: roll < chance, chance, roll };
+      }
+
+      function finishWeek() {
+        const goal = state.weeklyGoal;
+        const status = weeklyGoalStatus();
+        const score = [status.trainingDone, status.workDone, status.fameDone].filter(Boolean).length;
+        state.weeklyResult = `${score} / 3`;
+        if (score === 3) {
+          state.money += 500;
+          state.fans += 25;
+          state.fame = clamp(state.fame + 1, 0, 100);
+          addLog(`<strong>事务所周报</strong>：本周目标全部完成，获得 NT$ 500 奖励和 25 位粉丝。`);
+        } else {
+          addLog(`<strong>事务所周报</strong>：本周完成 ${score} / 3 项，先把短板补起来再接更大的工作。`);
+        }
+        state.week += 1;
+        state.weekStartDay = state.day;
+        state.weekTrainingCount = 0;
+        state.weekWorkCount = 0;
+        state.weekFameStart = state.fame;
+        state.weekFansStart = state.fans;
+        state.weeklyGoal = makeWeeklyGoal(state.week, state.weekFameStart);
+        state.stamina = clamp(state.stamina + 14, 0, 100);
+        state.mood = clamp(state.mood + 5, 0, 100);
+        addLog(`新的一周开始：训练目标 ${state.weeklyGoal.training} 次，工作目标 ${state.weeklyGoal.work} 份。`);
+      }
+
+      function resolveChapter() {
+        const config = chapterConfig();
+        const fansDone = state.fans >= state.chapterStartFans + config.fansGain;
+        const workDone = state.chapterWorkCount >= config.work;
+        const statDone = bestStat(state) >= config.stat;
+        if (fansDone && workDone && statDone) {
+          state.money += config.rewardMoney;
+          state.fans += config.rewardFans;
+          state.fame = clamp(state.fame + 2, 0, 100);
+          addLog(`<strong>${config.title}完成</strong>：新人企划通过，获得 NT$ ${fmt(config.rewardMoney)} 和 ${config.rewardFans} 位粉丝。`);
+          state.chapter += 1;
+        } else {
+          addLog(`<strong>${config.title}延期</strong>：工作 ${workDone ? "达标" : "未达标"}、粉丝 ${fansDone ? "达标" : "未达标"}、能力 ${statDone ? "达标" : "未达标"}，重新安排一个企划周期。`);
+        }
+        state.chapterStartDay = state.day;
+        state.chapterStartFans = state.fans;
+        state.chapterWorkCount = 0;
+      }
+
+      function resolveAction(actionId) {
+        const action = ACTIONS[actionId];
+        if (!action) return;
+        const missing = actionRequirements(action);
+        if (missing.length) {
+          notify(`暂时不能执行：${missing.join("、")}`);
+          return;
+        }
+        state.stamina = clamp(state.stamina + (action.stamina || 0), 0, 100);
+        state.mood = clamp(state.mood + (action.mood || 0), 0, 100);
+        const workResult = action.work ? resolveWork(actionId) : { success: true };
+        if (workResult.success) {
+          applyActionRewards(action);
+          if (["vocal", "acting", "appearance"].includes(actionId)) {
+            state.trainingCount += 1;
+            state.weekTrainingCount += 1;
+          }
+          if (action.work) {
+            state.workCount += 1;
+            state.weekWorkCount += 1;
+            state.chapterWorkCount += 1;
+            addLog(`<strong>${action.title}</strong>：${action.text} 成功率 ${workResult.chance}% ，本次工作顺利完成。`);
+          } else {
+            addLog(`<strong>${action.title}</strong>：${action.text}`);
+          }
+        } else {
+          addLog(`<strong>${action.title}</strong>：现场表现未达到要求，本次没有拿到报酬。实际成功率 ${workResult.chance}%。`);
+        }
+        resolveEvent(actionId, workResult.success);
         state.day += 1;
         state.planningDay = state.day;
         if (state.stamina <= 18) addLog("身体发出疲劳信号，下一天适合安排休息。");
         if (state.day % 7 === 1) {
-          state.stamina = clamp(state.stamina + 14, 0, 100);
-          state.mood = clamp(state.mood + 5, 0, 100);
-          addLog("新的一周开始，事务所送来了一束小小的庆祝花束。");
+          finishWeek();
+        }
+        if (state.day - state.chapterStartDay >= chapterConfig().days) {
+          resolveChapter();
         }
         delete state.schedule[String(state.day - 1)];
         persist("已自动保存");
@@ -615,9 +874,9 @@
         notify(`${action.title}完成，进入第 ${state.day} 天`);
       }
 
-      function resolveEvent(actionId) {
+      function resolveEvent(actionId, success) {
         const roll = (state.day * 29 + actionId.length * 17 + state.fame) % 100;
-        if (roll < 22 && actionId !== "rest") {
+        if (success && roll < 22 && actionId !== "rest") {
           state.fans += 12;
           state.mood = clamp(state.mood + 3, 0, 100);
           addLog("街角有人认出了你，今天多了 12 位新粉丝。");

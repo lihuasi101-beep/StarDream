@@ -3,7 +3,13 @@
   "type": "module",
   "summary": "Static browser implementation of the management loop",
   "entry_points": ["index.html", "window.StarDreamWeb"],
-  "features": ["status", "actions", "events", "calendar", "save/load", "responsive-ui"],
+  "features": ["status", "actions", "work-gates", "weekly-reports", "chapter-goals", "events", "calendar", "save/load", "responsive-ui"],
+  "rules": {
+    "daily_action": "one action advances one day",
+    "weekly_report": "every seven days, training/work/fame goals are scored and the next week goal is generated",
+    "work_resolution": "commercial, audition, recording and drama require stat/fame/week gates; success chance combines skill, mood and fame",
+    "chapter_loop": "a chapter runs for a fixed number of days and checks work count, fans gained and best stat before rewarding or restarting the plan"
+  },
   "evidence": ["index.html"],
   "web_implication": "Can be served by any static file server and does not require Node, Python, or a build step."
 }
