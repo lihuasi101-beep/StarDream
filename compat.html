@@ -76,6 +76,7 @@
       let viewportMutationObserver = null;
       let viewportFrame = 0;
       const viewportTimers = [];
+      const EMULATOR_SIDEBAR_WIDTH = 48;
       const SAVE_DB_NAME = "stardream-original-save-v1";
       const SAVE_STORE_NAME = "saves";
       const ASSET_CACHE_NAME = "stardream-original-assets-v1";
@@ -197,8 +198,8 @@ exit`;
       function syncEmulatorViewport() {
         const canvas = host.querySelector("canvas");
         const stage = canvas && canvas.parentElement;
-        if (!stage) return;
-        const stageWidth = stage.getBoundingClientRect().width;
+        const hostWidth = host.getBoundingClientRect().width;
+        const stageWidth = stage ? stage.getBoundingClientRect().width : hostWidth - EMULATOR_SIDEBAR_WIDTH;
         if (!stageWidth) return;
         const targetHeight = stageWidth * 3 / 4;
         const currentHeight = host.getBoundingClientRect().height;
@@ -287,6 +288,7 @@ exit`;
         commandInterface = null;
         saveOriginalButton.disabled = true;
         host.innerHTML = "";
+        syncEmulatorViewport();
         setStatus("正在加载原始资源和 DOSBox WebAssembly…");
         try {
           let storedSave = null;
