@@ -72,6 +72,10 @@
       let commandInterface = null;
       let currentFolder = "";
       let launchInProgress = false;
+      let viewportObserver = null;
+      let viewportMutationObserver = null;
+      let viewportFrame = 0;
+      const viewportTimers = [];
       const SAVE_DB_NAME = "stardream-original-save-v1";
       const SAVE_STORE_NAME = "saves";
       const ASSET_CACHE_NAME = "stardream-original-assets-v1";
@@ -175,6 +179,75 @@ exit`;
 
       function setStatus(text) { status.textContent = text; }
 
+      function getEmulatorGeometry() {
+        const canvas = host.querySelector("canvas");
+        const stage = canvas && canvas.parentElement;
+        const overlay = host.querySelector(".emulator-mouse-overlay");
+        const rect = (element) => element ? element.getBoundingClientRect().toJSON() : null;
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 },
+          host: rect(host),
+          stage: rect(stage),
+          canvas: rect(canvas),
+          overlay: rect(overlay),
+          canvasPixels: canvas ? { width: canvas.width, height: canvas.height } : null
+        };
+      }
+
+      function syncEmulatorViewport() {
+        const canvas = host.querySelector("canvas");
+        const stage = canvas && canvas.parentElement;
+        if (!stage) return;
+        const stageWidth = stage.getBoundingClientRect().width;
+        if (!stageWidth) return;
+        const targetHeight = stageWidth * 3 / 4;
+        const currentHeight = host.getBoundingClientRect().height;
+        if (Math.abs(currentHeight - targetHeight) > 0.5) {
+          host.style.height = `${targetHeight}px`;
+        }
+      }
+
+      function scheduleEmulatorViewportSync() {
+        if (viewportFrame) return;
+        viewportFrame = window.setTimeout(() => {
+          viewportFrame = 0;
+          syncEmulatorViewport();
+        }, 0);
+      }
+
+      function watchEmulatorViewport() {
+        if (!viewportObserver) viewportObserver = new ResizeObserver(scheduleEmulatorViewportSync);
+        if (!viewportMutationObserver) viewportMutationObserver = new MutationObserver(scheduleEmulatorViewportSync);
+        viewportObserver.observe(host);
+        viewportMutationObserver.observe(host, { childList: true, subtree: true });
+        window.addEventListener("resize", scheduleEmulatorViewportSync, { passive: true });
+        window.addEventListener("orientationchange", scheduleEmulatorViewportSync, { passive: true });
+        window.addEventListener("fullscreenchange", scheduleEmulatorViewportSync, { passive: true });
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener("resize", scheduleEmulatorViewportSync, { passive: true });
+          window.visualViewport.addEventListener("scroll", scheduleEmulatorViewportSync, { passive: true });
+        }
+        scheduleEmulatorViewportSync();
+        [0, 100, 500, 1500].forEach((delay) => viewportTimers.push(window.setTimeout(scheduleEmulatorViewportSync, delay)));
+      }
+
+      function unwatchEmulatorViewport() {
+        if (viewportObserver) viewportObserver.disconnect();
+        if (viewportMutationObserver) viewportMutationObserver.disconnect();
+        window.removeEventListener("resize", scheduleEmulatorViewportSync);
+        window.removeEventListener("orientationchange", scheduleEmulatorViewportSync);
+        window.removeEventListener("fullscreenchange", scheduleEmulatorViewportSync);
+        if (window.visualViewport) {
+          window.visualViewport.removeEventListener("resize", scheduleEmulatorViewportSync);
+          window.visualViewport.removeEventListener("scroll", scheduleEmulatorViewportSync);
+        }
+        if (viewportFrame) {
+          window.clearTimeout(viewportFrame);
+          viewportFrame = 0;
+        }
+        while (viewportTimers.length) window.clearTimeout(viewportTimers.pop());
+      }
+
       function openAssetCache() {
         if (!window.caches) return Promise.resolve(null);
         if (!assetCachePromise) assetCachePromise = window.caches.open(ASSET_CACHE_NAME).catch(() => null);
@@ -243,6 +316,7 @@ exit`;
             renderAspect: true,
             autoStart: true
           });
+          watchEmulatorViewport();
           stop.disabled = false;
           setStatus("原版兼容层已启动 · 等待 STAROPEN.EXE 输出画面");
         } catch (error) {
@@ -268,7 +342,9 @@ exit`;
         launchInProgress = false;
         commandInterface = null;
         currentFolder = "";
+        unwatchEmulatorViewport();
         host.innerHTML = "";
+        host.style.height = "";
         launch.disabled = false;
         language.disabled = false;
         saveOriginalButton.disabled = true;
@@ -279,7 +355,7 @@ exit`;
       launch.addEventListener("click", launchOriginal);
       saveOriginalButton.addEventListener("click", () => { saveOriginalSave(true); });
       stop.addEventListener("click", stopOriginal);
-      window.StarDreamCompat = { launch: launchOriginal, save: saveOriginalSave, stop: stopOriginal };
+      window.StarDreamCompat = { launch: launchOriginal, save: saveOriginalSave, stop: stopOriginal, geometry: getEmulatorGeometry };
       const query = new URLSearchParams(window.location.search);
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia("(max-width: 700px)").matches;
       if (query.get("autostart") === "1" || (isMobile && query.get("autostart") !== "0")) setTimeout(launchOriginal, 180);
