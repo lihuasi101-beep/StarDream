@@ -480,6 +480,7 @@ exit`;
           stop.disabled = false;
           setStatus("原版兼容层已启动 · 等待 STAROPEN.EXE 输出画面");
         } catch (error) {
+          uninstallInputLayer();
           player = null;
           commandInterface = null;
           currentFolder = "";
