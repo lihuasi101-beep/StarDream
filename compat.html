@@ -74,9 +74,13 @@
       let launchInProgress = false;
       let viewportObserver = null;
       let viewportMutationObserver = null;
+      let canvasStyleObserver = null;
       let viewportFrame = 0;
       const viewportTimers = [];
       const EMULATOR_SIDEBAR_WIDTH = 48;
+      const EMULATOR_NATIVE_WIDTH = 640;
+      const EMULATOR_NATIVE_HEIGHT = 480;
+      const EMULATOR_ACTIVE_HEIGHT = 420;
       const SAVE_DB_NAME = "stardream-original-save-v1";
       const SAVE_STORE_NAME = "saves";
       const ASSET_CACHE_NAME = "stardream-original-assets-v1";
@@ -191,13 +195,41 @@ exit`;
           stage: rect(stage),
           canvas: rect(canvas),
           overlay: rect(overlay),
-          canvasPixels: canvas ? { width: canvas.width, height: canvas.height } : null
+          canvasPixels: canvas ? { width: canvas.width, height: canvas.height } : null,
+          inputViewport: canvas ? { width: EMULATOR_NATIVE_WIDTH, height: EMULATOR_ACTIVE_HEIGHT } : null
         };
+      }
+
+      function isEmulatorFullscreen() {
+        return document.fullscreenElement === host || host.classList.contains("jsdos-fullscreen-workaround");
+      }
+
+      function syncCanvasInputViewport() {
+        const canvas = host.querySelector("canvas");
+        const stage = canvas && canvas.parentElement;
+        if (!canvas || !stage) return;
+        const stageRect = stage.getBoundingClientRect();
+        const width = stageRect.width;
+        if (!width) return;
+        const fullHeight = width * EMULATOR_NATIVE_HEIGHT / EMULATOR_NATIVE_WIDTH;
+        const activeHeight = width * EMULATOR_ACTIVE_HEIGHT / EMULATOR_NATIVE_WIDTH;
+        const top = Math.max(0, (stageRect.height - fullHeight) / 2);
+        canvas.style.setProperty("width", `${width}px`, "important");
+        canvas.style.setProperty("height", `${activeHeight}px`, "important");
+        canvas.style.setProperty("left", "0px", "important");
+        canvas.style.setProperty("top", `${top}px`, "important");
+        canvas.style.setProperty("object-fit", "cover", "important");
+        canvas.style.setProperty("object-position", "top", "important");
       }
 
       function syncEmulatorViewport() {
         const canvas = host.querySelector("canvas");
         const stage = canvas && canvas.parentElement;
+        if (isEmulatorFullscreen()) {
+          host.style.height = "";
+          syncCanvasInputViewport();
+          return;
+        }
         const hostWidth = host.getBoundingClientRect().width;
         const stageWidth = stage ? stage.getBoundingClientRect().width : hostWidth - EMULATOR_SIDEBAR_WIDTH;
         if (!stageWidth) return;
@@ -206,6 +238,7 @@ exit`;
         if (Math.abs(currentHeight - targetHeight) > 0.5) {
           host.style.height = `${targetHeight}px`;
         }
+        syncCanvasInputViewport();
       }
 
       function scheduleEmulatorViewportSync() {
@@ -213,14 +246,18 @@ exit`;
         viewportFrame = window.setTimeout(() => {
           viewportFrame = 0;
           syncEmulatorViewport();
+          window.requestAnimationFrame(syncEmulatorViewport);
         }, 0);
       }
 
       function watchEmulatorViewport() {
         if (!viewportObserver) viewportObserver = new ResizeObserver(scheduleEmulatorViewportSync);
         if (!viewportMutationObserver) viewportMutationObserver = new MutationObserver(scheduleEmulatorViewportSync);
+        if (!canvasStyleObserver) canvasStyleObserver = new MutationObserver(scheduleEmulatorViewportSync);
         viewportObserver.observe(host);
-        viewportMutationObserver.observe(host, { childList: true, subtree: true });
+        viewportMutationObserver.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
+        const canvas = host.querySelector("canvas");
+        if (canvas) canvasStyleObserver.observe(canvas, { attributes: true, attributeFilter: ["style"] });
         window.addEventListener("resize", scheduleEmulatorViewportSync, { passive: true });
         window.addEventListener("orientationchange", scheduleEmulatorViewportSync, { passive: true });
         window.addEventListener("fullscreenchange", scheduleEmulatorViewportSync, { passive: true });
@@ -235,6 +272,7 @@ exit`;
       function unwatchEmulatorViewport() {
         if (viewportObserver) viewportObserver.disconnect();
         if (viewportMutationObserver) viewportMutationObserver.disconnect();
+        if (canvasStyleObserver) canvasStyleObserver.disconnect();
         window.removeEventListener("resize", scheduleEmulatorViewportSync);
         window.removeEventListener("orientationchange", scheduleEmulatorViewportSync);
         window.removeEventListener("fullscreenchange", scheduleEmulatorViewportSync);
