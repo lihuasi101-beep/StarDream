@@ -32,6 +32,7 @@
     #dosbox { width:100%; aspect-ratio:4 / 3; height:auto; min-height:0; background:#000; touch-action:none; overscroll-behavior:contain; }
     #dosbox > .jsdos-rso, #dosbox canvas { width:100%; height:100%; }
     #dosbox canvas { display:block; image-rendering:pixelated; }
+    #dosbox .stardream-input-layer { position:absolute; z-index:4; touch-action:none; user-select:none; -webkit-user-select:none; cursor:default; }
     .compat-note { display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin-top:12px; }
     .note { padding:12px; border-top:3px solid var(--teal); background:var(--ink-soft); color:#ded5bf; font-size:11px; line-height:1.55; }
     .note strong { color:var(--paper); }
@@ -81,6 +82,9 @@
       const EMULATOR_NATIVE_WIDTH = 640;
       const EMULATOR_NATIVE_HEIGHT = 480;
       const EMULATOR_ACTIVE_HEIGHT = 420;
+      let inputLayer = null;
+      let inputLayerCleanup = null;
+      const activePointerButtons = new Map();
       const SAVE_DB_NAME = "stardream-original-save-v1";
       const SAVE_STORE_NAME = "saves";
       const ASSET_CACHE_NAME = "stardream-original-assets-v1";
@@ -188,6 +192,7 @@ exit`;
         const canvas = host.querySelector("canvas");
         const stage = canvas && canvas.parentElement;
         const overlay = host.querySelector(".emulator-mouse-overlay");
+        const input = host.querySelector(".stardream-input-layer");
         const rect = (element) => element ? element.getBoundingClientRect().toJSON() : null;
         return {
           viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 },
@@ -195,6 +200,7 @@ exit`;
           stage: rect(stage),
           canvas: rect(canvas),
           overlay: rect(overlay),
+          inputLayer: rect(input),
           canvasPixels: canvas ? { width: canvas.width, height: canvas.height } : null,
           inputViewport: canvas ? { width: EMULATOR_NATIVE_WIDTH, height: EMULATOR_ACTIVE_HEIGHT } : null
         };
@@ -202,6 +208,112 @@ exit`;
 
       function isEmulatorFullscreen() {
         return document.fullscreenElement === host || host.classList.contains("jsdos-fullscreen-workaround");
+      }
+
+      function clampUnit(value) {
+        return Math.max(0, Math.min(1, value));
+      }
+
+      function sendInputMotion(event) {
+        if (!inputLayer || !commandInterface || typeof commandInterface.sendMouseMotion !== "function") return;
+        const rect = inputLayer.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        commandInterface.sendMouseMotion(
+          clampUnit((event.clientX - rect.left) / rect.width),
+          clampUnit((event.clientY - rect.top) / rect.height)
+        );
+      }
+
+      function inputButton(event) {
+        return event.button === 0 ? 0 : 1;
+      }
+
+      function releaseInputButtons(pointerId) {
+        if (!commandInterface || typeof commandInterface.sendMouseButton !== "function") return;
+        const buttons = activePointerButtons.get(pointerId);
+        if (!buttons) return;
+        buttons.forEach((button) => commandInterface.sendMouseButton(button, false));
+        activePointerButtons.delete(pointerId);
+      }
+
+      function installInputLayer() {
+        if (inputLayer || !commandInterface || typeof commandInterface.sendMouseMotion !== "function" || typeof commandInterface.sendMouseButton !== "function") return;
+        const canvas = host.querySelector("canvas");
+        const stage = canvas && canvas.parentElement;
+        if (!canvas || !stage) return;
+        inputLayer = document.createElement("div");
+        inputLayer.className = "stardream-input-layer";
+        inputLayer.setAttribute("aria-hidden", "true");
+        stage.appendChild(inputLayer);
+
+        const prevent = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        };
+        const onPointerDown = (event) => {
+          if (!event.isPrimary) return;
+          prevent(event);
+          sendInputMotion(event);
+          const button = inputButton(event);
+          let buttons = activePointerButtons.get(event.pointerId);
+          if (!buttons) {
+            buttons = new Set();
+            activePointerButtons.set(event.pointerId, buttons);
+          }
+          if (!buttons.has(button)) {
+            buttons.add(button);
+            commandInterface.sendMouseButton(button, true);
+          }
+          try { inputLayer.setPointerCapture(event.pointerId); } catch (_) {}
+        };
+        const onPointerMove = (event) => {
+          if (!event.isPrimary) return;
+          prevent(event);
+          sendInputMotion(event);
+        };
+        const onPointerUp = (event) => {
+          if (!event.isPrimary) return;
+          prevent(event);
+          sendInputMotion(event);
+          releaseInputButtons(event.pointerId);
+          try { inputLayer.releasePointerCapture(event.pointerId); } catch (_) {}
+        };
+        const onPointerCancel = (event) => {
+          if (!event.isPrimary) return;
+          prevent(event);
+          releaseInputButtons(event.pointerId);
+        };
+        const onLostPointerCapture = (event) => releaseInputButtons(event.pointerId);
+        const onContextMenu = (event) => prevent(event);
+        const onWindowBlur = () => {
+          activePointerButtons.forEach((_, pointerId) => releaseInputButtons(pointerId));
+        };
+        inputLayer.addEventListener("pointerdown", onPointerDown, { passive: false });
+        inputLayer.addEventListener("pointermove", onPointerMove, { passive: false });
+        inputLayer.addEventListener("pointerup", onPointerUp, { passive: false });
+        inputLayer.addEventListener("pointercancel", onPointerCancel, { passive: false });
+        inputLayer.addEventListener("lostpointercapture", onLostPointerCapture);
+        inputLayer.addEventListener("contextmenu", onContextMenu, { passive: false });
+        window.addEventListener("blur", onWindowBlur);
+        inputLayerCleanup = () => {
+          activePointerButtons.forEach((_, pointerId) => releaseInputButtons(pointerId));
+          inputLayer.removeEventListener("pointerdown", onPointerDown);
+          inputLayer.removeEventListener("pointermove", onPointerMove);
+          inputLayer.removeEventListener("pointerup", onPointerUp);
+          inputLayer.removeEventListener("pointercancel", onPointerCancel);
+          inputLayer.removeEventListener("lostpointercapture", onLostPointerCapture);
+          inputLayer.removeEventListener("contextmenu", onContextMenu);
+          window.removeEventListener("blur", onWindowBlur);
+          inputLayer.remove();
+          inputLayer = null;
+          inputLayerCleanup = null;
+        };
+        syncEmulatorViewport();
+      }
+
+      function uninstallInputLayer() {
+        if (inputLayerCleanup) inputLayerCleanup();
+        else activePointerButtons.clear();
       }
 
       function syncCanvasInputViewport() {
@@ -220,6 +332,12 @@ exit`;
         canvas.style.setProperty("top", `${top}px`, "important");
         canvas.style.setProperty("object-fit", "cover", "important");
         canvas.style.setProperty("object-position", "top", "important");
+        if (inputLayer && inputLayer.parentElement === stage) {
+          inputLayer.style.setProperty("width", `${width}px`, "important");
+          inputLayer.style.setProperty("height", `${activeHeight}px`, "important");
+          inputLayer.style.setProperty("left", "0px", "important");
+          inputLayer.style.setProperty("top", `${top}px`, "important");
+        }
       }
 
       function syncEmulatorViewport() {
@@ -348,6 +466,7 @@ exit`;
             onEvent: (event, argument) => {
               if (event === "ci-ready" && argument && typeof argument.fsReadFile === "function") {
                 commandInterface = argument;
+                installInputLayer();
                 saveOriginalButton.disabled = false;
                 setStatus(storedSave ? "原版兼容层已启动 · 已恢复浏览器存档" : "原版兼容层已启动 · 可保存原版存档");
               }
@@ -357,6 +476,7 @@ exit`;
             autoStart: true
           });
           watchEmulatorViewport();
+          installInputLayer();
           stop.disabled = false;
           setStatus("原版兼容层已启动 · 等待 STAROPEN.EXE 输出画面");
         } catch (error) {
@@ -378,6 +498,7 @@ exit`;
         if (!player) return;
         await saveOriginalSave(false);
         try { await player.stop(); } catch (error) { setStatus(`停止时出现异常 · ${error.message || error}`); }
+        uninstallInputLayer();
         player = null;
         launchInProgress = false;
         commandInterface = null;
