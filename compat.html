@@ -28,6 +28,7 @@
     .control-button.stop { color:var(--paper); background:var(--coral); }
     .control-button.save { color:var(--ink); background:var(--yellow); }
     .control-button.load { color:var(--ink); background:#9ed8e5; }
+    .control-button.escape { color:var(--paper); background:#8b6cc7; }
     .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
     .emulator-frame { padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); overflow:hidden; }
     #dosbox { width:100%; aspect-ratio:4 / 3; height:auto; min-height:0; background:#000; touch-action:none; overscroll-behavior:contain; }
@@ -68,6 +69,7 @@
       <button class="control-button" id="launch" type="button">▶ 启动原版</button>
       <button class="control-button save" id="save-original" type="button" disabled>◆ 保存存档</button>
       <button class="control-button load" id="load-original" type="button">↶ 读取存档</button>
+      <button class="control-button escape" id="send-escape" type="button" disabled>↩ ESC 返回</button>
       <button class="control-button stop" id="stop" type="button" disabled>■ 停止</button>
       <div class="status" id="status" role="status" aria-live="polite">兼容层待启动 · DOSBox-X WebAssembly 8.4.1</div>
     </section>
@@ -97,6 +99,7 @@
       const launch = document.getElementById("launch");
       const saveOriginalButton = document.getElementById("save-original");
       const loadOriginalButton = document.getElementById("load-original");
+      const sendEscapeButton = document.getElementById("send-escape");
       const stop = document.getElementById("stop");
       const language = document.getElementById("language");
       const host = document.getElementById("dosbox");
@@ -118,7 +121,8 @@
       const EMULATOR_SIDEBAR_WIDTH = 48;
       const EMULATOR_NATIVE_WIDTH = 640;
       const EMULATOR_NATIVE_HEIGHT = 480;
-      const EMULATOR_ACTIVE_HEIGHT = 420;
+      const EMULATOR_ACTIVE_HEIGHT = EMULATOR_NATIVE_HEIGHT;
+      const DOSBOX_ESCAPE_KEY = 256;
       let inputLayer = null;
       let inputLayerCleanup = null;
       const activePointerButtons = new Map();
@@ -457,6 +461,24 @@ exit`;
         };
       }
 
+      function sendEscapeKey() {
+        if (!commandInterface) return;
+        try {
+          if (typeof commandInterface.simulateKeyPress === "function") {
+            commandInterface.simulateKeyPress(DOSBOX_ESCAPE_KEY);
+          } else if (typeof commandInterface.sendKeyEvent === "function") {
+            const ci = commandInterface;
+            ci.sendKeyEvent(DOSBOX_ESCAPE_KEY, true);
+            window.setTimeout(() => ci.sendKeyEvent(DOSBOX_ESCAPE_KEY, false), 16);
+          } else {
+            throw new Error("键盘接口不可用");
+          }
+          setStatus("已发送 ESC · 可返回上一级界面");
+        } catch (error) {
+          setStatus(`ESC 发送失败 · ${error.message || error}`);
+        }
+      }
+
       function isEmulatorFullscreen() {
         return document.fullscreenElement === host || host.classList.contains("jsdos-fullscreen-workaround");
       }
@@ -732,6 +754,7 @@ exit`;
                 startAutosave();
                 saveOriginalButton.disabled = false;
                 loadOriginalButton.disabled = false;
+                sendEscapeButton.disabled = false;
                 setStatus(`原版兼容层已启动 · ${saveSource}`);
               }
             },
@@ -753,6 +776,7 @@ exit`;
           currentFolder = "";
           lastPersistedBytes = null;
           saveOriginalButton.disabled = true;
+          sendEscapeButton.disabled = true;
           loadOriginalButton.disabled = false;
           setStatus(`启动失败 · ${error.message || error}`);
         } finally {
@@ -768,6 +792,7 @@ exit`;
       async function stopOriginal() {
         if (!player) return;
         stopAutosave();
+        sendEscapeButton.disabled = true;
         await saveOriginalSave(false, "stop");
         try { await player.stop(); } catch (error) { setStatus(`停止时出现异常 · ${error.message || error}`); }
         uninstallInputLayer();
@@ -783,6 +808,7 @@ exit`;
         launch.disabled = false;
         language.disabled = false;
         saveOriginalButton.disabled = true;
+        sendEscapeButton.disabled = true;
         loadOriginalButton.disabled = false;
         stop.disabled = true;
         setStatus("兼容层已停止 · DOSBox-X WebAssembly 8.4.1");
@@ -791,6 +817,7 @@ exit`;
       launch.addEventListener("click", launchOriginal);
       saveOriginalButton.addEventListener("click", () => { saveOriginalSave(true); });
       loadOriginalButton.addEventListener("click", openSaveDialog);
+      sendEscapeButton.addEventListener("click", sendEscapeKey);
       closeSaveDialog.addEventListener("click", closeSaveDialogWindow);
       loadSelectedSaveButton.addEventListener("click", loadSelectedSave);
       importSaveButton.addEventListener("click", () => importSaveFile.click());
