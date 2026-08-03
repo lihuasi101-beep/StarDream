@@ -27,12 +27,28 @@
     .control-button { min-height:44px; padding:0 13px; color:var(--ink); background:var(--teal); font-size:11px; font-weight:900; }
     .control-button.stop { color:var(--paper); background:var(--coral); }
     .control-button.save { color:var(--ink); background:var(--yellow); }
+    .control-button.load { color:var(--ink); background:#9ed8e5; }
     .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
     .emulator-frame { padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); overflow:hidden; }
     #dosbox { width:100%; aspect-ratio:4 / 3; height:auto; min-height:0; background:#000; touch-action:none; overscroll-behavior:contain; }
     #dosbox > .jsdos-rso, #dosbox canvas { width:100%; height:100%; }
     #dosbox canvas { display:block; image-rendering:pixelated; }
     #dosbox .stardream-input-layer { position:absolute; z-index:4; touch-action:none; user-select:none; -webkit-user-select:none; cursor:default; }
+    .save-dialog { width:min(560px,calc(100% - 24px)); max-height:min(720px,calc(100% - 24px)); padding:0; border:1px solid rgba(247,239,217,.3); background:var(--ink); color:var(--paper); box-shadow:0 24px 60px rgba(0,0,0,.45); }
+    .save-dialog::backdrop { background:rgba(6,12,25,.72); }
+    .save-dialog-inner { padding:18px; }
+    .save-dialog h2 { margin:0 0 6px; font-family:Georgia,serif; font-size:20px; }
+    .save-dialog-help { margin:0 0 14px; color:#ded5bf; font-size:11px; line-height:1.5; }
+    .save-list { display:grid; gap:7px; max-height:360px; overflow:auto; }
+    .save-entry { display:flex; align-items:center; gap:10px; min-height:54px; padding:9px 10px; border:1px solid rgba(247,239,217,.18); background:var(--ink-soft); cursor:pointer; }
+    .save-entry:has(input:checked) { border-color:var(--teal); background:#30445b; }
+    .save-entry input { flex:0 0 auto; accent-color:var(--teal); }
+    .save-entry-copy { display:grid; gap:3px; min-width:0; }
+    .save-entry-title { color:var(--paper); font-size:12px; font-weight:900; }
+    .save-entry-meta { color:#bfc9c7; font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .save-dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+    .save-dialog-actions button { min-height:40px; padding:0 13px; color:var(--paper); background:var(--ink-soft); border:1px solid rgba(247,239,217,.2); font-size:11px; font-weight:900; }
+    .save-dialog-actions .primary { color:var(--ink); background:var(--teal); border-color:var(--teal); }
     .compat-note { display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin-top:12px; }
     .note { padding:12px; border-top:3px solid var(--teal); background:var(--ink-soft); color:#ded5bf; font-size:11px; line-height:1.55; }
     .note strong { color:var(--paper); }
@@ -51,13 +67,27 @@
       <select id="language"><option value="chs">简体中文 / STAR_CHS</option><option value="cht">繁體中文 / STAR_CHT</option></select>
       <button class="control-button" id="launch" type="button">▶ 启动原版</button>
       <button class="control-button save" id="save-original" type="button" disabled>◆ 保存存档</button>
+      <button class="control-button load" id="load-original" type="button">↶ 读取存档</button>
       <button class="control-button stop" id="stop" type="button" disabled>■ 停止</button>
       <div class="status" id="status" role="status" aria-live="polite">兼容层待启动 · DOSBox-X WebAssembly 8.4.1</div>
     </section>
+    <dialog class="save-dialog" id="save-dialog">
+      <div class="save-dialog-inner">
+        <h2>读取存档</h2>
+        <p class="save-dialog-help">选择历史快照后启动原版。读取旧快照会覆盖当前兼容层中的临时进度，请先保存当前进度。</p>
+        <div class="save-list" id="save-list"></div>
+        <div class="save-dialog-actions">
+          <button id="import-save-button" type="button">导入 .SSS</button>
+          <input id="import-save-file" type="file" accept=".SSS,application/octet-stream" hidden>
+          <button id="close-save-dialog" type="button">取消</button>
+          <button class="primary" id="load-selected-save" type="button" disabled>读取选中存档</button>
+        </div>
+      </div>
+    </dialog>
     <section class="emulator-frame"><div id="dosbox"></div></section>
     <section class="compat-note">
       <div class="note"><strong>运行链路</strong><br>浏览器 → js-dos → DOSBox-X WASM → 虚拟文件系统 → <code>STAROPEN.EXE</code> → <code>STARDOM.EXE</code></div>
-      <div class="note"><strong>存档边界</strong><br><code>STARSAVE.SSS</code> 会按语言包保存到浏览器 IndexedDB；启动原版时自动恢复，点击“保存存档”或停止兼容层时写回。</div>
+      <div class="note"><strong>存档边界</strong><br><code>STARSAVE.SSS</code> 会按语言包保存到浏览器 IndexedDB；启动时自动恢复，30 秒定时备份，并保留最近 12 个历史快照，可通过“读取存档”回退。</div>
     </section>
   </main>
   <script src="compat/runtime/js-dos.js"></script>
@@ -66,9 +96,16 @@
       const status = document.getElementById("status");
       const launch = document.getElementById("launch");
       const saveOriginalButton = document.getElementById("save-original");
+      const loadOriginalButton = document.getElementById("load-original");
       const stop = document.getElementById("stop");
       const language = document.getElementById("language");
       const host = document.getElementById("dosbox");
+      const saveDialog = document.getElementById("save-dialog");
+      const saveList = document.getElementById("save-list");
+      const closeSaveDialog = document.getElementById("close-save-dialog");
+      const loadSelectedSaveButton = document.getElementById("load-selected-save");
+      const importSaveButton = document.getElementById("import-save-button");
+      const importSaveFile = document.getElementById("import-save-file");
       let player = null;
       let commandInterface = null;
       let currentFolder = "";
@@ -86,10 +123,18 @@
       let inputLayerCleanup = null;
       const activePointerButtons = new Map();
       const SAVE_DB_NAME = "stardream-original-save-v1";
+      const SAVE_DB_VERSION = 2;
       const SAVE_STORE_NAME = "saves";
+      const SNAPSHOT_STORE_NAME = "snapshots";
+      const MAX_SAVE_SNAPSHOTS = 12;
+      const AUTO_SAVE_INTERVAL_MS = 30000;
+      const RUN_MARKER_KEY = "stardream-original-run-active";
       const ASSET_CACHE_NAME = "stardream-original-assets-v1";
       const assetMemoryCache = new Map();
       let assetCachePromise = null;
+      let autosaveTimer = 0;
+      let lastPersistedBytes = null;
+      let selectedSaveEntries = [];
       if (new URLSearchParams(window.location.search).get("lang") === "cht") language.value = "cht";
       const ORIGINAL_FILES = [
         "BOWLING.ARB", "CDROM01.DAT", "INST.CFG", "INSTW.DAT", "MODELALL.ARB", "OPDANCE.ARB",
@@ -142,11 +187,31 @@ exit`;
       function openSaveDb() {
         return new Promise((resolve, reject) => {
           if (!window.indexedDB) { reject(new Error("当前浏览器不支持 IndexedDB")); return; }
-          const request = indexedDB.open(SAVE_DB_NAME, 1);
-          request.onupgradeneeded = () => request.result.createObjectStore(SAVE_STORE_NAME);
+          const request = indexedDB.open(SAVE_DB_NAME, SAVE_DB_VERSION);
+          request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(SAVE_STORE_NAME)) db.createObjectStore(SAVE_STORE_NAME);
+            if (!db.objectStoreNames.contains(SNAPSHOT_STORE_NAME)) {
+              const snapshots = db.createObjectStore(SNAPSHOT_STORE_NAME, { keyPath: "id" });
+              snapshots.createIndex("folder", "folder", { unique: false });
+            }
+          };
+          request.onblocked = () => reject(new Error("存档数据库正在被旧页面占用，请关闭其他 Star Dream 标签页后重试"));
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => reject(request.error || new Error("IndexedDB 打开失败"));
         });
+      }
+
+      function copyBytes(bytes) {
+        return new Uint8Array(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)).slice();
+      }
+
+      function bytesEqual(left, right) {
+        if (!left || !right || left.byteLength !== right.byteLength) return false;
+        for (let index = 0; index < left.byteLength; index += 1) {
+          if (left[index] !== right[index]) return false;
+        }
+        return true;
       }
 
       async function readStoredSave(folder) {
@@ -158,35 +223,221 @@ exit`;
         }).finally(() => db.close());
       }
 
-      async function writeStoredSave(folder, bytes) {
+      async function readStoredSnapshots(folder) {
         const db = await openSaveDb();
         return new Promise((resolve, reject) => {
-          const request = db.transaction(SAVE_STORE_NAME, "readwrite").objectStore(SAVE_STORE_NAME).put(bytes.buffer, saveKey(folder));
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error || new Error("IndexedDB 写入失败"));
+          const store = db.transaction(SNAPSHOT_STORE_NAME, "readonly").objectStore(SNAPSHOT_STORE_NAME);
+          const request = store.index("folder").getAll(folder);
+          request.onsuccess = () => resolve(request.result.sort((left, right) => right.createdAt - left.createdAt));
+          request.onerror = () => reject(request.error || new Error("IndexedDB 快照读取失败"));
         }).finally(() => db.close());
       }
 
-      async function saveOriginalSave(showStatus = true) {
-        if (!commandInterface || !currentFolder) {
-          if (showStatus) setStatus("原版存档尚未就绪 · 请先启动兼容层");
-          return false;
-        }
-        try {
-          if (showStatus) setStatus(`正在读取原版存档 · ${currentFolder}`);
-          const readPromise = commandInterface.fsReadFile(`${currentFolder}/STARSAVE.SSS`);
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("虚拟文件读取超时")), 8000));
-          const bytes = new Uint8Array(await Promise.race([readPromise, timeoutPromise]));
-          await writeStoredSave(currentFolder, bytes);
-          if (showStatus) setStatus(`原版存档已保存 · ${currentFolder} · ${bytes.byteLength} bytes`);
-          return true;
-        } catch (error) {
-          if (showStatus) setStatus(`原版存档保存失败 · ${error.message || error}`);
-          return false;
-        }
+      async function writeStoredSave(folder, bytes, reason = "manual") {
+        const db = await openSaveDb();
+        const snapshotBytes = copyBytes(bytes);
+        const now = Date.now();
+        const snapshot = {
+          id: `${folder}:${now}:${Math.random().toString(36).slice(2)}`,
+          folder,
+          createdAt: now,
+          reason,
+          size: snapshotBytes.byteLength,
+          bytes: snapshotBytes.buffer.slice(0)
+        };
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction([SAVE_STORE_NAME, SNAPSHOT_STORE_NAME], "readwrite");
+          const latestStore = transaction.objectStore(SAVE_STORE_NAME);
+          const snapshotStore = transaction.objectStore(SNAPSHOT_STORE_NAME);
+          latestStore.put(snapshotBytes.buffer.slice(0), saveKey(folder));
+          snapshotStore.put(snapshot);
+          const oldSnapshots = snapshotStore.index("folder").getAll(folder);
+          oldSnapshots.onsuccess = () => {
+            const records = oldSnapshots.result.sort((left, right) => right.createdAt - left.createdAt);
+            records.slice(MAX_SAVE_SNAPSHOTS).forEach((record) => snapshotStore.delete(record.id));
+          };
+          transaction.oncomplete = () => resolve(snapshot);
+          transaction.onerror = () => reject(transaction.error || new Error("IndexedDB 写入失败"));
+          transaction.onabort = () => reject(transaction.error || new Error("IndexedDB 写入已回滚"));
+        }).finally(() => db.close());
+      }
+
+      let saveInFlight = null;
+      function saveOriginalSave(showStatus = true, reason = "manual") {
+        if (saveInFlight) return saveInFlight;
+        const task = (async () => {
+          if (!commandInterface || !currentFolder) {
+            if (showStatus) setStatus("原版存档尚未就绪 · 请先启动兼容层");
+            return false;
+          }
+          try {
+            if (showStatus) setStatus(`正在读取原版存档 · ${currentFolder}`);
+            const readPromise = commandInterface.fsReadFile(`${currentFolder}/STARSAVE.SSS`);
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("虚拟文件读取超时")), 8000));
+            const bytes = copyBytes(await Promise.race([readPromise, timeoutPromise]));
+            const changed = !bytesEqual(lastPersistedBytes, bytes);
+            const mustSnapshot = changed || reason === "manual" || reason === "stop";
+            if (mustSnapshot) {
+              await writeStoredSave(currentFolder, bytes, reason);
+              lastPersistedBytes = bytes;
+            }
+            if (showStatus) setStatus(`原版存档已保存 · ${currentFolder} · ${bytes.byteLength} bytes`);
+            return true;
+          } catch (error) {
+            if (showStatus) setStatus(`原版存档保存失败 · ${error.message || error}`);
+            return false;
+          }
+        })();
+        saveInFlight = task;
+        const clearSaveInFlight = () => {
+          if (saveInFlight === task) saveInFlight = null;
+        };
+        task.then(clearSaveInFlight, clearSaveInFlight);
+        return task;
       }
 
       function setStatus(text) { status.textContent = text; }
+
+      function markRunStarted(folder) {
+        try { localStorage.setItem(RUN_MARKER_KEY, JSON.stringify({ folder, startedAt: Date.now() })); } catch (_) {}
+      }
+
+      function clearRunMarker() {
+        try { localStorage.removeItem(RUN_MARKER_KEY); } catch (_) {}
+      }
+
+      function hasInterruptedRun() {
+        try { return Boolean(localStorage.getItem(RUN_MARKER_KEY)); } catch (_) { return false; }
+      }
+
+      function snapshotReasonLabel(reason) {
+        return ({
+          manual: "手动保存",
+          stop: "停止前保存",
+          autosave: "定时备份",
+          visibility: "页面隐藏前备份",
+          import: "导入存档"
+        })[reason] || "存档快照";
+      }
+
+      function snapshotTimeLabel(timestamp) {
+        return new Date(timestamp).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      }
+
+      function startAutosave() {
+        if (autosaveTimer) window.clearInterval(autosaveTimer);
+        autosaveTimer = window.setInterval(() => {
+          if (commandInterface && currentFolder) saveOriginalSave(false, "autosave");
+        }, AUTO_SAVE_INTERVAL_MS);
+      }
+
+      function stopAutosave() {
+        if (!autosaveTimer) return;
+        window.clearInterval(autosaveTimer);
+        autosaveTimer = 0;
+      }
+
+      async function getSaveEntries(folder) {
+        const snapshots = await readStoredSnapshots(folder);
+        if (snapshots.length) return snapshots.map((snapshot) => ({
+          id: snapshot.id,
+          folder: snapshot.folder,
+          createdAt: snapshot.createdAt,
+          reason: snapshot.reason,
+          size: snapshot.size,
+          bytes: copyBytes(snapshot.bytes)
+        }));
+        const latest = await readStoredSave(folder);
+        return latest ? [{
+          id: "latest",
+          folder,
+          createdAt: 0,
+          reason: "legacy",
+          size: latest.byteLength,
+          bytes: latest
+        }] : [];
+      }
+
+      async function openSaveDialog() {
+        selectedSaveEntries = [];
+        saveList.textContent = "正在读取存档快照…";
+        loadSelectedSaveButton.disabled = true;
+        if (!saveDialog.open) {
+          if (typeof saveDialog.showModal === "function") saveDialog.showModal();
+          else saveDialog.setAttribute("open", "");
+        }
+        try {
+          selectedSaveEntries = await getSaveEntries(language.value === "cht" ? "STAR_CHT" : "STAR_CHS");
+          saveList.textContent = "";
+          if (!selectedSaveEntries.length) {
+            const empty = document.createElement("p");
+            empty.className = "save-dialog-help";
+            empty.textContent = "暂无可读取的浏览器存档，请先启动原版并保存一次。";
+            saveList.appendChild(empty);
+            return;
+          }
+          selectedSaveEntries.forEach((entry, index) => {
+            const label = document.createElement("label");
+            label.className = "save-entry";
+            const input = document.createElement("input");
+            input.type = "radio";
+            input.name = "save-entry";
+            input.value = String(index);
+            input.checked = index === 0;
+            input.addEventListener("change", () => { loadSelectedSaveButton.disabled = false; });
+            const copy = document.createElement("span");
+            copy.className = "save-entry-copy";
+            const title = document.createElement("span");
+            title.className = "save-entry-title";
+            title.textContent = `${snapshotReasonLabel(entry.reason)} · ${entry.folder}`;
+            const meta = document.createElement("span");
+            meta.className = "save-entry-meta";
+            meta.textContent = entry.createdAt ? `${snapshotTimeLabel(entry.createdAt)} · ${entry.size} bytes` : `历史存档 · ${entry.size} bytes`;
+            copy.append(title, meta);
+            label.append(input, copy);
+            saveList.appendChild(label);
+          });
+          loadSelectedSaveButton.disabled = false;
+        } catch (error) {
+          saveList.textContent = `存档读取失败 · ${error.message || error}`;
+          setStatus(`存档列表读取失败 · ${error.message || error}`);
+        }
+      }
+
+      function closeSaveDialogWindow() {
+        if (typeof saveDialog.close === "function" && saveDialog.open) saveDialog.close();
+        else saveDialog.removeAttribute("open");
+      }
+
+      async function importSaveFromFile() {
+        const file = importSaveFile.files && importSaveFile.files[0];
+        if (!file) return;
+        try {
+          const bytes = copyBytes(await file.arrayBuffer());
+          if (bytes.byteLength < 512 || bytes.byteLength > 4 * 1024 * 1024) throw new Error("文件大小不符合 STARSAVE.SSS 存档范围");
+          const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
+          await writeStoredSave(folder, bytes, "import");
+          setStatus(`存档文件已导入 · ${folder} · ${bytes.byteLength} bytes`);
+          await openSaveDialog();
+        } catch (error) {
+          setStatus(`存档文件导入失败 · ${error.message || error}`);
+        } finally {
+          importSaveFile.value = "";
+        }
+      }
+
+      async function loadSelectedSave() {
+        const selected = saveList.querySelector("input[name=save-entry]:checked");
+        const entry = selected && selectedSaveEntries[Number(selected.value)];
+        if (!entry) return;
+        closeSaveDialogWindow();
+        if (player) await stopOriginal();
+        language.value = entry.folder === "STAR_CHT" ? "cht" : "chs";
+        await launchOriginal({
+          saveBytes: copyBytes(entry.bytes),
+          saveSource: `${snapshotReasonLabel(entry.reason)} · ${snapshotTimeLabel(entry.createdAt || Date.now())}`
+        });
+      }
 
       function getEmulatorGeometry() {
         const canvas = host.querySelector("canvas");
@@ -316,6 +567,11 @@ exit`;
         else activePointerButtons.clear();
       }
 
+      function setImportantStyle(element, property, value) {
+        if (element.style.getPropertyValue(property) === value && element.style.getPropertyPriority(property) === "important") return;
+        element.style.setProperty(property, value, "important");
+      }
+
       function syncCanvasInputViewport() {
         const canvas = host.querySelector("canvas");
         const stage = canvas && canvas.parentElement;
@@ -326,17 +582,17 @@ exit`;
         const fullHeight = width * EMULATOR_NATIVE_HEIGHT / EMULATOR_NATIVE_WIDTH;
         const activeHeight = width * EMULATOR_ACTIVE_HEIGHT / EMULATOR_NATIVE_WIDTH;
         const top = Math.max(0, (stageRect.height - fullHeight) / 2);
-        canvas.style.setProperty("width", `${width}px`, "important");
-        canvas.style.setProperty("height", `${activeHeight}px`, "important");
-        canvas.style.setProperty("left", "0px", "important");
-        canvas.style.setProperty("top", `${top}px`, "important");
-        canvas.style.setProperty("object-fit", "cover", "important");
-        canvas.style.setProperty("object-position", "top", "important");
+        setImportantStyle(canvas, "width", `${width}px`);
+        setImportantStyle(canvas, "height", `${activeHeight}px`);
+        setImportantStyle(canvas, "left", "0px");
+        setImportantStyle(canvas, "top", `${top}px`);
+        setImportantStyle(canvas, "object-fit", "cover");
+        setImportantStyle(canvas, "object-position", "top");
         if (inputLayer && inputLayer.parentElement === stage) {
-          inputLayer.style.setProperty("width", `${width}px`, "important");
-          inputLayer.style.setProperty("height", `${activeHeight}px`, "important");
-          inputLayer.style.setProperty("left", "0px", "important");
-          inputLayer.style.setProperty("top", `${top}px`, "important");
+          setImportantStyle(inputLayer, "width", `${width}px`);
+          setImportantStyle(inputLayer, "height", `${activeHeight}px`);
+          setImportantStyle(inputLayer, "left", "0px");
+          setImportantStyle(inputLayer, "top", `${top}px`);
         }
       }
 
@@ -373,7 +629,7 @@ exit`;
         if (!viewportMutationObserver) viewportMutationObserver = new MutationObserver(scheduleEmulatorViewportSync);
         if (!canvasStyleObserver) canvasStyleObserver = new MutationObserver(scheduleEmulatorViewportSync);
         viewportObserver.observe(host);
-        viewportMutationObserver.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
+        viewportMutationObserver.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
         const canvas = host.querySelector("canvas");
         if (canvas) canvasStyleObserver.observe(canvas, { attributes: true, attributeFilter: ["style"] });
         window.addEventListener("resize", scheduleEmulatorViewportSync, { passive: true });
@@ -434,21 +690,27 @@ exit`;
         return bytes.slice();
       }
 
-      async function launchOriginal() {
+      async function launchOriginal(options = {}) {
         if (player || launchInProgress) return;
         launchInProgress = true;
         launch.disabled = true;
         language.disabled = true;
+        loadOriginalButton.disabled = true;
         const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
         currentFolder = folder;
+        markRunStarted(folder);
         commandInterface = null;
         saveOriginalButton.disabled = true;
         host.innerHTML = "";
         syncEmulatorViewport();
         setStatus("正在加载原始资源和 DOSBox WebAssembly…");
         try {
-          let storedSave = null;
-          try { storedSave = await readStoredSave(folder); } catch (error) { setStatus(`本地存档不可用 · ${error.message || error}`); }
+          let storedSave = options.saveBytes ? copyBytes(options.saveBytes) : null;
+          if (!storedSave) {
+            try { storedSave = await readStoredSave(folder); } catch (error) { setStatus(`本地存档不可用 · ${error.message || error}`); }
+          }
+          lastPersistedBytes = storedSave ? copyBytes(storedSave) : null;
+          const saveSource = options.saveSource || (storedSave ? "已恢复浏览器存档" : "可保存原版存档");
           let loadedCount = 0;
           const initFs = await Promise.all(ORIGINAL_FILES.map(async (file) => {
             const asset = await readOriginalAsset(folder, file);
@@ -467,8 +729,10 @@ exit`;
               if (event === "ci-ready" && argument && typeof argument.fsReadFile === "function") {
                 commandInterface = argument;
                 installInputLayer();
+                startAutosave();
                 saveOriginalButton.disabled = false;
-                setStatus(storedSave ? "原版兼容层已启动 · 已恢复浏览器存档" : "原版兼容层已启动 · 可保存原版存档");
+                loadOriginalButton.disabled = false;
+                setStatus(`原版兼容层已启动 · ${saveSource}`);
               }
             },
             imageRendering: "pixelated",
@@ -478,45 +742,67 @@ exit`;
           watchEmulatorViewport();
           installInputLayer();
           stop.disabled = false;
+          loadOriginalButton.disabled = false;
           setStatus("原版兼容层已启动 · 等待 STAROPEN.EXE 输出画面");
         } catch (error) {
+          stopAutosave();
           uninstallInputLayer();
+          clearRunMarker();
           player = null;
           commandInterface = null;
           currentFolder = "";
+          lastPersistedBytes = null;
           saveOriginalButton.disabled = true;
+          loadOriginalButton.disabled = false;
           setStatus(`启动失败 · ${error.message || error}`);
         } finally {
           launchInProgress = false;
           if (!player) {
             launch.disabled = false;
             language.disabled = false;
+            loadOriginalButton.disabled = false;
           }
         }
       }
 
       async function stopOriginal() {
         if (!player) return;
-        await saveOriginalSave(false);
+        stopAutosave();
+        await saveOriginalSave(false, "stop");
         try { await player.stop(); } catch (error) { setStatus(`停止时出现异常 · ${error.message || error}`); }
         uninstallInputLayer();
+        clearRunMarker();
         player = null;
         launchInProgress = false;
         commandInterface = null;
         currentFolder = "";
+        lastPersistedBytes = null;
         unwatchEmulatorViewport();
         host.innerHTML = "";
         host.style.height = "";
         launch.disabled = false;
         language.disabled = false;
         saveOriginalButton.disabled = true;
+        loadOriginalButton.disabled = false;
         stop.disabled = true;
         setStatus("兼容层已停止 · DOSBox-X WebAssembly 8.4.1");
       }
 
       launch.addEventListener("click", launchOriginal);
       saveOriginalButton.addEventListener("click", () => { saveOriginalSave(true); });
+      loadOriginalButton.addEventListener("click", openSaveDialog);
+      closeSaveDialog.addEventListener("click", closeSaveDialogWindow);
+      loadSelectedSaveButton.addEventListener("click", loadSelectedSave);
+      importSaveButton.addEventListener("click", () => importSaveFile.click());
+      importSaveFile.addEventListener("change", importSaveFromFile);
       stop.addEventListener("click", stopOriginal);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden" && commandInterface && currentFolder) saveOriginalSave(false, "visibility");
+      });
+      window.addEventListener("pagehide", () => {
+        if (commandInterface && currentFolder) saveOriginalSave(false, "visibility");
+      });
+      if (hasInterruptedRun()) setStatus("检测到上次运行异常中断 · 可通过读取存档恢复历史快照");
       window.StarDreamCompat = { launch: launchOriginal, save: saveOriginalSave, stop: stopOriginal, geometry: getEmulatorGeometry };
       const query = new URLSearchParams(window.location.search);
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia("(max-width: 700px)").matches;
