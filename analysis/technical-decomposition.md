@@ -85,7 +85,7 @@ DOS Game Launch.exe (.NET Framework 4.8)
 
 `compat.html` 加载项目内的 js-dos 8.4.1、`wdosbox-x.js` 与 `wdosbox-x.wasm`。GitHub Pages artifact 直接提供 `STAR_CHS`/`STAR_CHT` 目录，页面只 fetch 当前语言包的 18 个文件，并以 `{ path, contents }` 形式注入虚拟文件系统；随后提供与 `STAR1_CHS.conf`/`STAR1_CHT.conf` 一致的 `autoexec`：挂载当前目录、切换语言目录、执行 `STAROPEN.EXE`。移动入口带 `autostart=1`，避免用户停留在未启动的黑色画布。
 
-兼容页通过 js-dos 的 `ci-ready` 事件取得 `CommandInterface`。启动前从 `stardream-original-save-v1` 读取对应语言的 `STARSAVE.SSS` 覆盖初始文件；用户点击“保存存档”或停止兼容层时，通过 `fsReadFile` 读取运行中的文件并写回 IndexedDB。简体和繁体使用不同 key，避免互相覆盖。
+兼容页通过 js-dos 的 `ci-ready` 事件取得 `CommandInterface`。启动前从 `stardream-original-save-v1` 读取对应语言的 `STARSAVE.SSS` 覆盖初始文件；运行中通过 `fsReadFile` 读取存档，先同步写入按语言分开的 `localStorage` 刷新保护镜像，再提交带时间戳的 IndexedDB 最新记录和历史快照。兼容层就绪后立即做一次基线备份，鼠标/触摸释放或键盘抬起后再做一次 1.5 秒防抖备份，随后每 8 秒轮询一次，并在页面隐藏、离开、冻结前尽力保存。刷新重新启动时比较 IndexedDB 与镜像的时间戳，优先恢复更新的一份；因此不再依赖卸载阶段异步 IndexedDB 写入才能保住最近进度。简体和繁体使用不同 key，避免互相覆盖。
 
 ### 已完成：网页经营扩展
 
@@ -98,10 +98,11 @@ DOS Game Launch.exe (.NET Framework 4.8)
 已完成的资源优化：
 
 - 首次加载时并行读取当前语言目录的 18 个原始文件，并写入版本化 Cache Storage；刷新页面后优先从内存或 Cache Storage 读取，避免重复网络下载。
+- 原版存档增加刷新保护镜像、操作后 1.5 秒防抖备份、8 秒自动备份、启动时新旧存储源比较和最近 12 个历史快照；即使刷新期间 IndexedDB 写入未完成，也可从同步镜像恢复最近一次自动保护结果。
 
 后续工作：
 
-1. 增加原版存档导出/导入，并处理浏览器私有模式或存储配额不足的提示。
+1. 增加原版存档导出/导入，并处理浏览器私有模式、同步镜像配额不足或两种浏览器存储同时不可用的提示。
 2. 对 `.ARB/.MKB` 保持“原版只读”策略，除非已取得可验证的解码规则；网页端不直接编辑二进制资源。
 3. 以标题页、开档、日程推进、存档/读档、音频播放、窗口失焦恢复为完整验收用例。
 
@@ -109,7 +110,7 @@ DOS Game Launch.exe (.NET Framework 4.8)
 
 - 没有源码和资源格式说明，无法证明重建逻辑与原版公式完全一致；
 - js-dos 运行时为 GPL-2.0-only，分发兼容模式时必须保留 `THIRD_PARTY_NOTICES.md` 并遵守对应源代码提供义务；
-- IndexedDB 存档依赖浏览器持久化权限，当前尚未提供跨浏览器导出/导入；
+- 存档仍依赖浏览器本地存储，刷新保护镜像只能降低卸载时序导致的丢档风险，不能跨设备同步，也无法抵御用户清理站点数据；
 - 私有资源包需要在浏览器中整体加载，移动端首屏和内存预算需要单独验证；
 - 语言差异不止 UI 文案，`STARFON.MKB`/`STARFONA.MKB` 的差异需要在兼容层中保留；
 - 当前网页端使用本地生成的界面和原版标题截图，尚未抽取原始 ARB 图片为 WebP/PNG。
