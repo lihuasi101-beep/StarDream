@@ -105,7 +105,7 @@
     <section class="emulator-frame"><div id="dosbox"></div></section>
     <section class="compat-note">
       <div class="note"><strong>运行链路</strong><br>浏览器 → js-dos → DOSBox-X WASM → 虚拟文件系统 → <code>STAROPEN.EXE</code> → <code>STARDOM.EXE</code></div>
-      <div class="note"><strong>存档保护</strong><br><code>STARSAVE.SSS</code> 会按语言包保存到 IndexedDB，并同步写入刷新保护镜像；启动时自动恢复，每 8 秒备份，并保留最近 12 个历史快照，可通过“读取存档”回退。</div>
+      <div class="note"><strong>存档保护</strong><br><code>STARSAVE.SSS</code> 与 <code>STARSA*.SSS</code> 会按语言包保存到 IndexedDB，并同步写入刷新保护镜像；启动时自动恢复，每 8 秒备份，并保留最近 12 个历史快照，可通过“读取存档”回退。</div>
     </section>
   </main>
   <script src="compat/runtime/js-dos.js"></script>
@@ -387,6 +387,42 @@ exit`;
         return Boolean(bytes) && bytes.byteLength >= 512 && bytes.byteLength <= 4 * 1024 * 1024;
       }
 
+      function isValidAuxiliarySaveBytes(bytes) {
+        return Boolean(bytes) && bytes.byteLength > 0 && bytes.byteLength <= 4 * 1024 * 1024;
+      }
+
+      function normalizeSaveFileName(name) {
+        return String(name || "").replace(/\\/g, "/").replace(/^\.\//, "").split("/").pop().toUpperCase();
+      }
+
+      function isSaveFileName(name) {
+        return /^(?:STARSAVE|STARSA[A-Z0-9]{2})\.SSS$/i.test(normalizeSaveFileName(name));
+      }
+
+      function cloneSaveFiles(files) {
+        if (!Array.isArray(files)) return [];
+        return files.map((file) => {
+          const name = normalizeSaveFileName(file && file.name);
+          const rawBytes = file && (file.bytes || file.contents);
+          if (!isSaveFileName(name) || !rawBytes) return null;
+          const bytes = copyBytes(rawBytes);
+          if (!isValidAuxiliarySaveBytes(bytes)) return null;
+          return { name, bytes, size: bytes.byteLength };
+        }).filter(Boolean);
+      }
+
+      function storedSaveFiles(files) {
+        return cloneSaveFiles(files).map((file) => ({
+          name: file.name,
+          size: file.bytes.byteLength,
+          bytes: file.bytes.buffer.slice(0)
+        }));
+      }
+
+      function saveFilesSignature(files) {
+        return cloneSaveFiles(files).sort((left, right) => left.name.localeCompare(right.name)).map((file) => `${file.name}:${bytesToBase64(file.bytes)}`).join("|");
+      }
+
       function bytesToBase64(bytes) {
         const source = copyBytes(bytes);
         let binary = "";
@@ -406,16 +442,22 @@ exit`;
 
       function saveMirrorKey(folder) { return `${SAVE_MIRROR_KEY_PREFIX}${folder}`; }
 
-      function writeSaveMirror(folder, bytes, reason, savedAt) {
+      function writeSaveMirror(folder, bytes, reason, savedAt, files = []) {
         if (!isValidSaveBytes(bytes)) return false;
         try {
+          const auxiliaryFiles = storedSaveFiles(files).map((file) => ({
+            name: file.name,
+            size: file.size,
+            bytes: bytesToBase64(file.bytes)
+          }));
           localStorage.setItem(saveMirrorKey(folder), JSON.stringify({
-            version: 2,
+            version: 3,
             folder,
             savedAt,
             reason,
             size: bytes.byteLength,
-            bytes: bytesToBase64(bytes)
+            bytes: bytesToBase64(bytes),
+            files: auxiliaryFiles
           }));
           return true;
         } catch (_) {
@@ -429,9 +471,10 @@ exit`;
           if (!raw) return null;
           const record = JSON.parse(raw);
           const bytes = base64ToBytes(record.bytes);
-          if (record.version !== 2 || record.folder !== folder || Number(record.size) !== bytes.byteLength || !isValidSaveBytes(bytes)) return null;
+          if (![2, 3].includes(Number(record.version)) || record.folder !== folder || Number(record.size) !== bytes.byteLength || !isValidSaveBytes(bytes)) return null;
           return {
             bytes,
+            files: cloneSaveFiles((record.files || []).map((file) => ({ name: file.name, bytes: base64ToBytes(file.bytes) }))),
             savedAt: Number(record.savedAt) || 0,
             reason: record.reason || "autosave",
             size: bytes.byteLength,
@@ -464,6 +507,7 @@ exit`;
               const bytes = value.bytes ? copyBytes(value.bytes) : copyBytes(value);
               resolve({
                 bytes,
+                files: cloneSaveFiles(value.files || []),
                 savedAt: Number(value.savedAt) || 0,
                 reason: value.reason || "legacy",
                 size: bytes.byteLength,
@@ -507,8 +551,9 @@ exit`;
         }).finally(() => db.close());
       }
 
-      async function writeStoredSave(folder, bytes, reason = "manual") {
+      async function writeStoredSave(folder, bytes, reason = "manual", files = []) {
         const snapshotBytes = copyBytes(bytes);
+        const auxiliaryFiles = cloneSaveFiles(files);
         const now = Date.now();
         const snapshot = {
           id: `${folder}:${now}:${Math.random().toString(36).slice(2)}`,
@@ -516,9 +561,10 @@ exit`;
           createdAt: now,
           reason,
           size: snapshotBytes.byteLength,
-          bytes: snapshotBytes.buffer.slice(0)
+          bytes: snapshotBytes.buffer.slice(0),
+          files: storedSaveFiles(auxiliaryFiles)
         };
-        const mirrorWritten = writeSaveMirror(folder, snapshotBytes, reason, now);
+        const mirrorWritten = writeSaveMirror(folder, snapshotBytes, reason, now, auxiliaryFiles);
         let db = null;
         try {
           db = await openSaveDb();
@@ -527,11 +573,12 @@ exit`;
             const latestStore = transaction.objectStore(SAVE_STORE_NAME);
             const snapshotStore = transaction.objectStore(SNAPSHOT_STORE_NAME);
             latestStore.put({
-              version: 2,
+              version: 3,
               bytes: snapshotBytes.buffer.slice(0),
               savedAt: now,
               reason,
-              size: snapshotBytes.byteLength
+              size: snapshotBytes.byteLength,
+              files: storedSaveFiles(auxiliaryFiles)
             }, saveKey(folder));
             snapshotStore.put(snapshot);
             const oldSnapshots = snapshotStore.index("folder").getAll(folder);
@@ -552,7 +599,76 @@ exit`;
         }
       }
 
+      function collectVirtualTreeFiles(node, prefix = "", result = []) {
+        if (Array.isArray(node)) {
+          node.forEach((child) => collectVirtualTreeFiles(child, prefix, result));
+          return result;
+        }
+        if (!node || typeof node !== "object") return result;
+        const name = typeof node.name === "string" ? node.name : "";
+        const current = name ? (prefix ? `${prefix}/${name}` : name) : prefix;
+        if (Array.isArray(node.nodes)) {
+          node.nodes.forEach((child) => collectVirtualTreeFiles(child, current, result));
+        } else if (current) {
+          result.push(current);
+        }
+        return result;
+      }
+
+      function runtimeSaveFileCandidates(tree) {
+        const prefix = `${currentFolder.toUpperCase()}/`;
+        const candidates = new Map();
+        collectVirtualTreeFiles(tree).forEach((path) => {
+          const normalized = String(path).replace(/\\/g, "/").replace(/^\.\//, "");
+          const upper = normalized.toUpperCase();
+          if (!upper.startsWith(prefix)) return;
+          const name = normalizeSaveFileName(normalized.slice(prefix.length));
+          if (isSaveFileName(name)) candidates.set(name, normalized);
+        });
+        if (!candidates.has("STARSAVE.SSS")) candidates.set("STARSAVE.SSS", `${currentFolder}/STARSAVE.SSS`);
+        return [...candidates.entries()].map(([name, path]) => ({ name, path }));
+      }
+
+      async function readRuntimeSaveFiles() {
+        if (!commandInterface || !currentFolder) throw new Error("runtime save interface is not ready");
+        let tree = null;
+        try {
+          if (typeof commandInterface.fsTree === "function") {
+            tree = await withTimeout(commandInterface.fsTree(), STORAGE_READ_TIMEOUT_MS, "virtual filesystem tree read timed out");
+          }
+        } catch (error) {
+          diagnosticLog("save_tree_read_failed", { folder: currentFolder, error: diagnosticError(error) });
+        }
+        const candidates = runtimeSaveFileCandidates(tree || []);
+        const files = [];
+        for (const candidate of candidates) {
+          try {
+            const bytes = copyBytes(await withTimeout(
+              commandInterface.fsReadFile(candidate.path),
+              SAVE_READ_TIMEOUT_MS,
+              `virtual save file read timed out: ${candidate.name}`
+            ));
+            const valid = candidate.name === "STARSAVE.SSS" ? isValidSaveBytes(bytes) : isValidAuxiliarySaveBytes(bytes);
+            if (!valid) throw new Error(`invalid save file size: ${candidate.name} (${bytes.byteLength})`);
+            files.push({ name: candidate.name, bytes, size: bytes.byteLength });
+          } catch (error) {
+            diagnosticLog("save_file_read_failed", { folder: currentFolder, name: candidate.name, path: candidate.path, error: diagnosticError(error) });
+          }
+        }
+        const primary = files.find((file) => file.name === "STARSAVE.SSS");
+        diagnosticLog("save_files_discovered", {
+          folder: currentFolder,
+          treeAvailable: Boolean(tree),
+          candidateCount: candidates.length,
+          files: files.map((file) => ({ name: file.name, size: file.size })),
+          primaryAvailable: Boolean(primary)
+        });
+        if (!primary) throw new Error("STARSAVE.SSS was not found in the virtual filesystem");
+        return files;
+      }
+
       let saveInFlight = null;
+      let lastPersistedFilesSignature = "";
       function saveOriginalSave(showStatus = true, reason = "manual") {
         if (saveInFlight) {
           diagnosticLog("save_coalesced", { folder: currentFolder || null, reason });
@@ -567,18 +683,19 @@ exit`;
           diagnosticLog("save_begin", { folder: currentFolder, reason, showStatus });
           try {
             if (showStatus) setStatus(`正在读取原版存档 · ${currentFolder}`);
-            const bytes = copyBytes(await withTimeout(
-              commandInterface.fsReadFile(`${currentFolder}/STARSAVE.SSS`),
-              SAVE_READ_TIMEOUT_MS,
-              "虚拟文件读取超时"
-            ));
-            const changed = !bytesEqual(lastPersistedBytes, bytes);
+            const files = await readRuntimeSaveFiles();
+            const primary = files.find((file) => file.name === "STARSAVE.SSS");
+            const bytes = copyBytes(primary.bytes);
+            const auxiliaryFiles = files.filter((file) => file.name !== "STARSAVE.SSS");
+            const filesSignature = saveFilesSignature(auxiliaryFiles);
+            const changed = !bytesEqual(lastPersistedBytes, bytes) || filesSignature !== lastPersistedFilesSignature;
             const mustSnapshot = changed || reason === "manual" || reason === "stop";
-            diagnosticLog("save_read_complete", { folder: currentFolder, reason, size: bytes.byteLength, changed, mustSnapshot });
+            diagnosticLog("save_read_complete", { folder: currentFolder, reason, size: bytes.byteLength, auxiliaryFiles: auxiliaryFiles.map((file) => ({ name: file.name, size: file.size })), changed, mustSnapshot });
             if (mustSnapshot) {
-              const result = await writeStoredSave(currentFolder, bytes, reason);
+              const result = await writeStoredSave(currentFolder, bytes, reason, auxiliaryFiles);
               lastPersistedBytes = bytes;
-              diagnosticLog("save_write_complete", { folder: currentFolder, reason, size: bytes.byteLength, indexedDb: result.indexedDb, mirror: result.mirror });
+              lastPersistedFilesSignature = filesSignature;
+              diagnosticLog("save_write_complete", { folder: currentFolder, reason, size: bytes.byteLength, auxiliaryFiles: auxiliaryFiles.length, indexedDb: result.indexedDb, mirror: result.mirror });
               if (showStatus && !result.indexedDb) {
                 setStatus(`原版存档已写入刷新保护镜像 · ${currentFolder} · IndexedDB 暂不可用`);
                 return true;
@@ -679,7 +796,8 @@ exit`;
           createdAt: snapshot.createdAt,
           reason: snapshot.reason,
           size: snapshot.size,
-          bytes: copyBytes(snapshot.bytes)
+          bytes: copyBytes(snapshot.bytes),
+          files: cloneSaveFiles(snapshot.files || [])
         }));
         let latest = latestResult;
         if (!latest) latest = readSaveMirror(folder);
@@ -690,7 +808,8 @@ exit`;
             createdAt: latest.savedAt,
             reason: latest.reason || "legacy",
             size: latest.size,
-            bytes: copyBytes(latest.bytes)
+            bytes: copyBytes(latest.bytes),
+            files: cloneSaveFiles(latest.files || [])
           });
         }
         return entries;
@@ -801,6 +920,7 @@ exit`;
           diagnosticLog("load_selected_launch_begin", { folder: entry.folder, afterStopPlayer: Boolean(player), generation: runtimeGeneration });
           await launchOriginal({
             saveBytes: copyBytes(entry.bytes),
+            saveFiles: cloneSaveFiles(entry.files || []),
             saveSource: `${snapshotReasonLabel(entry.reason)} · ${snapshotTimeLabel(entry.createdAt || Date.now())}`
           });
         } catch (error) {
@@ -1266,6 +1386,7 @@ exit`;
         try {
           let storedSaveRecord = options.saveBytes ? {
             bytes: copyBytes(options.saveBytes),
+            files: cloneSaveFiles(options.saveFiles || []),
             savedAt: Date.now(),
             reason: "manual-load",
             size: options.saveBytes.byteLength,
@@ -1284,8 +1405,11 @@ exit`;
             }
           }
           const storedSave = storedSaveRecord ? copyBytes(storedSaveRecord.bytes) : null;
+          const restoredAuxiliaryFiles = storedSaveRecord ? cloneSaveFiles(storedSaveRecord.files || []) : [];
           lastPersistedBytes = storedSave ? copyBytes(storedSave) : null;
+          lastPersistedFilesSignature = saveFilesSignature(restoredAuxiliaryFiles);
           diagnosticLog("launch_save_selected", { generation, folder, source: storedSaveRecord ? storedSaveRecord.source : "default", size: storedSave ? storedSave.byteLength : 0 });
+          diagnosticLog("launch_save_files_selected", { generation, folder, files: restoredAuxiliaryFiles.map((file) => ({ name: file.name, size: file.size })) });
           const saveSource = options.saveSource || (storedSaveRecord
             ? (storedSaveRecord.source === "mirror" ? "已恢复刷新保护镜像" : "已恢复浏览器存档")
             : "可保存原版存档");
@@ -1295,10 +1419,15 @@ exit`;
             const asset = await readOriginalAsset(folder, file);
             loadedCount += 1;
             setStatus(`正在加载原始资源 ${loadedCount}/${ORIGINAL_FILES.length} · ${file}`);
-            const contents = file === "STARSAVE.SSS" && storedSave ? storedSave : asset;
+            const restored = restoredAuxiliaryFiles.find((saveFile) => saveFile.name === file);
+            const contents = restored ? restored.bytes : (file === "STARSAVE.SSS" && storedSave ? storedSave : asset);
             return { path: `${folder}/${file}`, contents };
           }));
-          diagnosticLog("assets_load_complete", { generation, folder, count: initFs.length, saveInjected: Boolean(storedSave) });
+          const initFsPaths = new Set(initFs.map((entry) => entry.path.toUpperCase()));
+          restoredAuxiliaryFiles.filter((file) => !initFsPaths.has(`${folder}/${file.name}`.toUpperCase())).forEach((file) => {
+            initFs.push({ path: `${folder}/${file.name}`, contents: file.bytes });
+          });
+          diagnosticLog("assets_load_complete", { generation, folder, count: initFs.length, saveInjected: Boolean(storedSave), saveFilesInjected: restoredAuxiliaryFiles.map((file) => file.name) });
           const config = DOSBOX_CONFIG.replace("STAR_CHS", language.value === "cht" ? "STAR_CHT" : "STAR_CHS");
           player = Dos(host, {
             dosboxConf: config,
@@ -1346,6 +1475,7 @@ exit`;
           commandInterface = null;
           currentFolder = "";
           lastPersistedBytes = null;
+          lastPersistedFilesSignature = "";
           saveOriginalButton.disabled = true;
           sendEscapeButton.disabled = true;
           loadOriginalButton.disabled = false;
@@ -1407,6 +1537,7 @@ exit`;
         commandInterface = null;
         currentFolder = "";
         lastPersistedBytes = null;
+        lastPersistedFilesSignature = "";
         unwatchEmulatorViewport();
         host.innerHTML = "";
         host.style.height = "";
