@@ -118,6 +118,7 @@
       let viewportObserver = null;
       let viewportMutationObserver = null;
       let canvasStyleObserver = null;
+      let emulatorAutoStartCleanup = null;
       let viewportFrame = 0;
       const viewportTimers = [];
       const EMULATOR_SIDEBAR_WIDTH = 48;
@@ -611,7 +612,7 @@ exit`;
         } finally {
           loadInProgress = false;
           loadSelectedSaveButton.disabled = false;
-          if (!launchInProgress) loadOriginalButton.disabled = false;
+          if (!launchInProgress && commandInterface) loadOriginalButton.disabled = false;
         }
       }
 
@@ -925,6 +926,45 @@ exit`;
         while (viewportTimers.length) window.clearTimeout(viewportTimers.pop());
       }
 
+      function scheduleEmulatorAutoStart(generation) {
+        if (emulatorAutoStartCleanup) emulatorAutoStartCleanup();
+        let observer = null;
+        let finished = false;
+        const timers = [];
+        const cleanup = () => {
+          if (finished) return;
+          finished = true;
+          if (observer) observer.disconnect();
+          while (timers.length) window.clearTimeout(timers.pop());
+          if (emulatorAutoStartCleanup === cleanup) emulatorAutoStartCleanup = null;
+        };
+        const tryStart = () => {
+          if (finished) return true;
+          if (generation !== runtimeGeneration || !player) {
+            cleanup();
+            return true;
+          }
+          const playButton = host.querySelector(".play-button");
+          if (!playButton) return false;
+          try {
+            if (typeof player.setAutoStart === "function") player.setAutoStart(true);
+            playButton.click();
+            setStatus("正在启动 STAROPEN.EXE…");
+          } catch (error) {
+            setStatus(`自动启动失败 · ${error.message || error}`);
+          }
+          cleanup();
+          return true;
+        };
+        observer = new MutationObserver(tryStart);
+        observer.observe(host, { childList: true, subtree: true });
+        [0, 50, 150, 300, 800, 1500, 3000, 6000, 10000].forEach((delay) => {
+          timers.push(window.setTimeout(tryStart, delay));
+        });
+        emulatorAutoStartCleanup = cleanup;
+        tryStart();
+      }
+
       function openAssetCache() {
         if (!window.caches) return Promise.resolve(null);
         if (!assetCachePromise) assetCachePromise = window.caches.open(ASSET_CACHE_NAME).catch(() => null);
@@ -1028,11 +1068,12 @@ exit`;
           });
           watchEmulatorViewport();
           installInputLayer();
+          scheduleEmulatorAutoStart(generation);
           stop.disabled = false;
-          loadOriginalButton.disabled = false;
-          setStatus("原版兼容层已启动 · 等待 STAROPEN.EXE 输出画面");
+          setStatus("兼容层已创建 · 正在启动 STAROPEN.EXE…");
         } catch (error) {
           if (generation !== runtimeGeneration) return;
+          if (emulatorAutoStartCleanup) emulatorAutoStartCleanup();
           stopAutosave();
           uninstallInputLayer();
           clearRunMarker();
@@ -1060,6 +1101,7 @@ exit`;
         if (!activePlayer) return true;
         player = null;
         runtimeGeneration += 1;
+        if (emulatorAutoStartCleanup) emulatorAutoStartCleanup();
         stopAutosave();
         launch.disabled = true;
         language.disabled = true;
