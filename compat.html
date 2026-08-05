@@ -123,6 +123,8 @@
       const EMULATOR_SIDEBAR_WIDTH = 48;
       const EMULATOR_NATIVE_WIDTH = 640;
       const EMULATOR_NATIVE_HEIGHT = 480;
+      // STARDOM's active pointer surface is 640x420; the remaining scanlines are bottom black space.
+      const EMULATOR_ACTIVE_HEIGHT = 420;
       const DOSBOX_ESCAPE_KEY = 256;
       const SAVE_READ_TIMEOUT_MS = 5000;
       const STORAGE_READ_TIMEOUT_MS = 5000;
@@ -620,6 +622,7 @@ exit`;
         const input = host.querySelector(".stardream-input-layer");
         const rect = (element) => element ? element.getBoundingClientRect().toJSON() : null;
         const frame = getNativeFrameSize(canvas);
+        const activeFrame = canvas ? getActiveFrameSize(canvas) : null;
         return {
           viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 },
           host: rect(host),
@@ -629,7 +632,8 @@ exit`;
           inputLayer: rect(input),
           canvasPixels: canvas ? { width: canvas.width, height: canvas.height } : null,
           pointerViewport: getPointerViewport(),
-          inputViewport: canvas ? frame : null
+          canvasFrame: canvas ? frame : null,
+          inputViewport: activeFrame
         };
       }
 
@@ -672,12 +676,16 @@ exit`;
         };
       }
 
-      function getPointerViewport() {
-        const canvas = host.querySelector("canvas");
-        if (!canvas) return null;
-        const rect = canvas.getBoundingClientRect();
+      function getActiveFrameSize(canvas) {
         const frame = getNativeFrameSize(canvas);
-        if (!rect.width || !rect.height) return null;
+        return {
+          width: frame.width,
+          height: Math.min(frame.height, EMULATOR_ACTIVE_HEIGHT)
+        };
+      }
+
+      function getActiveViewport(rect, frame) {
+        if (!rect || !rect.width || !rect.height || !frame.width || !frame.height) return null;
         const aspect = frame.width / frame.height;
         let width = rect.width;
         let height = width / aspect;
@@ -687,11 +695,18 @@ exit`;
         }
         return {
           left: rect.left + (rect.width - width) / 2,
-          top: rect.top + (rect.height - height) / 2,
+          top: rect.top,
           width,
           height,
           frame
         };
+      }
+
+      function getPointerViewport() {
+        const canvas = host.querySelector("canvas");
+        if (!canvas) return null;
+        const rect = canvas.getBoundingClientRect();
+        return getActiveViewport(rect, getActiveFrameSize(canvas));
       }
 
       function sendInputMotion(event) {
@@ -721,6 +736,12 @@ exit`;
         const canvas = host.querySelector("canvas");
         const stage = canvas && canvas.parentElement;
         if (!canvas || !stage) return;
+        const overlay = host.querySelector(".emulator-mouse-overlay");
+        const previousOverlayPointerEvents = overlay ? {
+          value: overlay.style.getPropertyValue("pointer-events"),
+          priority: overlay.style.getPropertyPriority("pointer-events")
+        } : null;
+        if (overlay) setImportantStyle(overlay, "pointer-events", "none");
         inputLayer = document.createElement("div");
         inputLayer.className = "stardream-input-layer";
         inputLayer.setAttribute("aria-hidden", "true");
@@ -784,6 +805,10 @@ exit`;
           inputLayer.removeEventListener("lostpointercapture", onLostPointerCapture);
           inputLayer.removeEventListener("contextmenu", onContextMenu);
           window.removeEventListener("blur", onWindowBlur);
+          if (overlay) {
+            if (previousOverlayPointerEvents.value) overlay.style.setProperty("pointer-events", previousOverlayPointerEvents.value, previousOverlayPointerEvents.priority);
+            else overlay.style.removeProperty("pointer-events");
+          }
           inputLayer.remove();
           inputLayer = null;
           inputLayerCleanup = null;
@@ -825,10 +850,13 @@ exit`;
         setImportantStyle(canvas, "object-position", "top");
         if (inputLayer && inputLayer.parentElement === stage) {
           const canvasRect = canvas.getBoundingClientRect();
-          setImportantStyle(inputLayer, "width", `${canvasRect.width}px`);
-          setImportantStyle(inputLayer, "height", `${canvasRect.height}px`);
-          setImportantStyle(inputLayer, "left", `${canvasRect.left - stageRect.left}px`);
-          setImportantStyle(inputLayer, "top", `${canvasRect.top - stageRect.top}px`);
+          const activeViewport = getActiveViewport(canvasRect, getActiveFrameSize(canvas));
+          if (activeViewport) {
+            setImportantStyle(inputLayer, "width", `${activeViewport.width}px`);
+            setImportantStyle(inputLayer, "height", `${activeViewport.height}px`);
+            setImportantStyle(inputLayer, "left", `${activeViewport.left - stageRect.left}px`);
+            setImportantStyle(inputLayer, "top", `${activeViewport.top - stageRect.top}px`);
+          }
         }
       }
 
