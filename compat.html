@@ -886,7 +886,14 @@ exit`;
           const bytes = copyBytes(await file.arrayBuffer());
           if (bytes.byteLength < 512 || bytes.byteLength > 4 * 1024 * 1024) throw new Error("文件大小不符合 STARSAVE.SSS 存档范围");
           const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
-          await writeStoredSave(folder, bytes, "import");
+          const existing = await withTimeout(readStoredSaveRecord(folder), STORAGE_READ_TIMEOUT_MS, "existing save read timed out");
+          const preservedFiles = existing ? cloneSaveFiles(existing.files || []) : [];
+          await writeStoredSave(folder, bytes, "import", preservedFiles);
+          diagnosticLog("save_import_complete", {
+            folder,
+            size: bytes.byteLength,
+            preservedFiles: preservedFiles.map((saveFile) => ({ name: saveFile.name, size: saveFile.size }))
+          });
           setStatus(`存档文件已导入 · ${folder} · ${bytes.byteLength} bytes`);
           await openSaveDialog();
         } catch (error) {
