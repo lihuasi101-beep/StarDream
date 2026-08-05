@@ -93,6 +93,12 @@ DOS Game Launch.exe (.NET Framework 4.8)
 
 读档后的白色播放页是 js-dos 8.4.1 的 `prerun` UI，不是原版程序画面。其 `autoStart` 配置在异步 emulator/bundle 初始化期间存在时序竞态，尤其是重建旧实例后更容易先显示 `.play-button`。兼容页现在监听固定版本运行时的预启动控件并触发一次启动，同时只有收到 `ci-ready` 后才重新开放保存和读档按钮；停止或切换实例时会清理这个监听器。
 
+### 诊断日志与故障定位
+
+`compat.html` now keeps up to 300 structured diagnostic entries in `localStorage` under `stardream-compat-diagnostics-v1`. The page records launch generations, selected save source and size, IndexedDB/mirror fallback, bounded-operation timeouts, old-player stop results, js-dos prerun button attempts, runtime events, `ci-ready` API availability, delayed Canvas geometry snapshots, sampled pointer coordinates and uncaught browser errors. Binary values are reduced to type and byte length; save contents are never written to the diagnostic stream.
+
+The `Diagnostics` disclosure below the control bar provides copy, download and clear actions. The same data is exposed through `window.StarDreamCompat.diagnostics`, so browser-side verification can read the current entries without editing the page. Geometry samples deliberately include the prerun-to-runtime transition: the emulator may briefly expose a temporary `640x400` frame before settling on the `640x480` Canvas, which must be compared with the active pointer viewport before diagnosing vertical drift.
+
 ### 已完成：网页经营扩展
 
 网页端现在按“日行动 -> 周报 -> 阶段企划”三层推进。第一阶段为 28 天新人出道企划，要求完成 3 份工作、积累 380 位粉丝并将任一能力提升到 40；第二阶段提高期限和门槛，后续阶段按相同接口递增。广告通告和公开试镜作为早期工作，唱片录音和电视剧演出从第 3 周起开放；每项工作都会在行动面板展示门槛，执行时以能力、心情、知名度计算稳定的成功率，失败只消耗当日资源而不发放正向奖励。

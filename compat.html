@@ -30,6 +30,13 @@
     .control-button.load { color:var(--ink); background:#9ed8e5; }
     .control-button.escape { color:var(--paper); background:#8b6cc7; }
     .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
+    .diagnostics-panel { margin:0 0 12px; border:1px solid rgba(247,239,217,.18); background:rgba(11,16,27,.82); color:var(--paper); }
+    .diagnostics-panel summary { min-height:40px; padding:11px 12px; cursor:pointer; color:var(--teal); font-size:11px; font-weight:900; }
+    .diagnostics-panel[open] summary { border-bottom:1px solid rgba(247,239,217,.14); }
+    .diagnostics-toolbar { display:flex; flex-wrap:wrap; gap:7px; padding:10px 12px 0; }
+    .diagnostics-toolbar button { min-height:38px; padding:0 11px; border:1px solid rgba(247,239,217,.2); background:var(--ink-soft); color:var(--paper); font-size:10px; font-weight:900; }
+    .diagnostics-toolbar button:hover { border-color:var(--teal); }
+    .diagnostics-log { max-height:260px; margin:10px 12px 12px; padding:10px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:#070b13; color:#c8f4ed; font:10px/1.45 Consolas,monospace; }
     .emulator-frame { padding:15px; border:1px solid var(--line); background:#0b101b; box-shadow:0 18px 34px rgba(6,12,25,.24); overflow:hidden; }
     #dosbox { width:100%; aspect-ratio:4 / 3; height:auto; min-height:0; background:#000; touch-action:none; overscroll-behavior:contain; }
     #dosbox > .jsdos-rso, #dosbox canvas { width:100%; height:100%; }
@@ -73,6 +80,15 @@
       <button class="control-button stop" id="stop" type="button" disabled>■ 停止</button>
       <div class="status" id="status" role="status" aria-live="polite">兼容层待启动 · DOSBox-X WebAssembly 8.4.1</div>
     </section>
+    <details class="diagnostics-panel" id="diagnostics-panel">
+      <summary>Diagnostics</summary>
+      <div class="diagnostics-toolbar">
+        <button id="copy-diagnostics" type="button">Copy log</button>
+        <button id="download-diagnostics" type="button">Download log</button>
+        <button id="clear-diagnostics" type="button">Clear log</button>
+      </div>
+      <pre class="diagnostics-log" id="diagnostics-log">No diagnostic entries yet.</pre>
+    </details>
     <dialog class="save-dialog" id="save-dialog">
       <div class="save-dialog-inner">
         <h2>读取存档</h2>
@@ -109,6 +125,136 @@
       const loadSelectedSaveButton = document.getElementById("load-selected-save");
       const importSaveButton = document.getElementById("import-save-button");
       const importSaveFile = document.getElementById("import-save-file");
+      const diagnosticsLogElement = document.getElementById("diagnostics-log");
+      const copyDiagnosticsButton = document.getElementById("copy-diagnostics");
+      const downloadDiagnosticsButton = document.getElementById("download-diagnostics");
+      const clearDiagnosticsButton = document.getElementById("clear-diagnostics");
+      const DIAGNOSTIC_STORAGE_KEY = "stardream-compat-diagnostics-v1";
+      const DIAGNOSTIC_MAX_ENTRIES = 300;
+      const diagnosticSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const diagnosticsEnabled = new URLSearchParams(window.location.search).get("debug") === "1";
+      let diagnosticEntries = readDiagnosticEntries();
+      let lastStatusText = "";
+
+      function readDiagnosticEntries() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(DIAGNOSTIC_STORAGE_KEY) || "[]");
+          return Array.isArray(parsed) ? parsed.slice(-DIAGNOSTIC_MAX_ENTRIES) : [];
+        } catch (_) {
+          return [];
+        }
+      }
+
+      function sanitizeDiagnosticValue(value, depth = 0) {
+        if (value === null || value === undefined || typeof value === "string" || typeof value === "boolean") return value;
+        if (typeof value === "number") return Number.isFinite(value) ? value : String(value);
+        if (value instanceof Error) return { name: value.name, message: value.message, stack: String(value.stack || "").slice(0, 2400) };
+        if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return { type: "binary", size: value.byteLength };
+        if (depth >= 4 || typeof value !== "object") return String(value);
+        const result = {};
+        Object.keys(value).slice(0, 24).forEach((key) => {
+          if (/bytes|contents|buffer|data/i.test(key)) {
+            const candidate = value[key];
+            result[key] = candidate && typeof candidate.byteLength === "number" ? { type: "binary", size: candidate.byteLength } : "[omitted]";
+          } else {
+            result[key] = sanitizeDiagnosticValue(value[key], depth + 1);
+          }
+        });
+        return result;
+      }
+
+      function renderDiagnosticLog() {
+        if (!diagnosticEntries.length) {
+          diagnosticsLogElement.textContent = "No diagnostic entries yet.";
+          return;
+        }
+        diagnosticsLogElement.textContent = diagnosticEntries.map((entry) => JSON.stringify(entry)).join("\n");
+        diagnosticsLogElement.scrollTop = diagnosticsLogElement.scrollHeight;
+      }
+
+      function getDiagnosticText() {
+        return diagnosticEntries.map((entry) => JSON.stringify(entry)).join("\n");
+      }
+
+      function diagnosticLog(event, details = {}) {
+        const entry = {
+          at: new Date().toISOString(),
+          session: diagnosticSessionId,
+          event,
+          details: sanitizeDiagnosticValue(details)
+        };
+        diagnosticEntries = diagnosticEntries.concat(entry).slice(-DIAGNOSTIC_MAX_ENTRIES);
+        try { localStorage.setItem(DIAGNOSTIC_STORAGE_KEY, JSON.stringify(diagnosticEntries)); } catch (_) {}
+        renderDiagnosticLog();
+        if (diagnosticsEnabled) console.info("[StarDream diagnostic]", entry);
+      }
+
+      function diagnosticError(error) {
+        return sanitizeDiagnosticValue(error instanceof Error ? error : new Error(String(error)));
+      }
+
+      function clearDiagnosticLog() {
+        diagnosticEntries = [];
+        try { localStorage.removeItem(DIAGNOSTIC_STORAGE_KEY); } catch (_) {}
+        renderDiagnosticLog();
+        diagnosticLog("diagnostics_cleared");
+      }
+
+      async function copyDiagnosticLog() {
+        const text = getDiagnosticText();
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            textarea.remove();
+          }
+          setStatus("Diagnostic log copied");
+          diagnosticLog("diagnostics_copied", { entries: diagnosticEntries.length });
+        } catch (error) {
+          setStatus(`Copy diagnostic log failed: ${error.message || error}`);
+          diagnosticLog("diagnostics_copy_failed", { error: diagnosticError(error) });
+        }
+      }
+
+      function downloadDiagnosticLog() {
+        try {
+          const blob = new Blob([getDiagnosticText() + "\n"], { type: "application/x-ndjson;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = `stardream-diagnostics-${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`;
+          anchor.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+          setStatus("Diagnostic log downloaded");
+          diagnosticLog("diagnostics_downloaded", { entries: diagnosticEntries.length });
+        } catch (error) {
+          setStatus(`Download diagnostic log failed: ${error.message || error}`);
+          diagnosticLog("diagnostics_download_failed", { error: diagnosticError(error) });
+        }
+      }
+
+      renderDiagnosticLog();
+      diagnosticLog("page_loaded", {
+        href: window.location.href,
+        userAgent: navigator.userAgent.slice(0, 240),
+        viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 },
+        previousEntries: diagnosticEntries.length
+      });
+      window.addEventListener("error", (event) => diagnosticLog("window_error", {
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        column: event.colno,
+        error: diagnosticError(event.error || event.message)
+      }));
+      window.addEventListener("unhandledrejection", (event) => diagnosticLog("unhandled_rejection", { reason: diagnosticError(event.reason) }));
       let player = null;
       let commandInterface = null;
       let currentFolder = "";
@@ -221,10 +367,20 @@ exit`;
 
       function withTimeout(promise, timeoutMs, message) {
         let timer = 0;
+        let timedOut = false;
         return Promise.race([
           Promise.resolve(promise),
-          new Promise((_, reject) => { timer = window.setTimeout(() => reject(new Error(message)), timeoutMs); })
-        ]).finally(() => window.clearTimeout(timer));
+          new Promise((_, reject) => {
+            timer = window.setTimeout(() => {
+              timedOut = true;
+              diagnosticLog("timeout", { message, timeoutMs });
+              reject(new Error(message));
+            }, timeoutMs);
+          })
+        ]).catch((error) => {
+          if (!timedOut) diagnosticLog("bounded_operation_failed", { message, timeoutMs, error: diagnosticError(error) });
+          throw error;
+        }).finally(() => window.clearTimeout(timer));
       }
 
       function isValidSaveBytes(bytes) {
@@ -318,15 +474,26 @@ exit`;
           });
         } catch (error) {
           indexedDbError = error;
+          diagnosticLog("save_indexeddb_read_failed", { folder, error: diagnosticError(error) });
         } finally {
           if (db) db.close();
         }
 
         const mirrorRecord = readSaveMirror(folder);
-        if (mirrorRecord && (!indexedDbRecord || mirrorRecord.savedAt >= indexedDbRecord.savedAt)) return mirrorRecord;
-        if (indexedDbRecord && isValidSaveBytes(indexedDbRecord.bytes)) return indexedDbRecord;
-        if (mirrorRecord) return mirrorRecord;
+        if (mirrorRecord && (!indexedDbRecord || mirrorRecord.savedAt >= indexedDbRecord.savedAt)) {
+          diagnosticLog("save_record_selected", { folder, source: "mirror", size: mirrorRecord.size, savedAt: mirrorRecord.savedAt, indexedDbAvailable: Boolean(indexedDbRecord) });
+          return mirrorRecord;
+        }
+        if (indexedDbRecord && isValidSaveBytes(indexedDbRecord.bytes)) {
+          diagnosticLog("save_record_selected", { folder, source: "indexeddb", size: indexedDbRecord.size, savedAt: indexedDbRecord.savedAt, mirrorAvailable: Boolean(mirrorRecord) });
+          return indexedDbRecord;
+        }
+        if (mirrorRecord) {
+          diagnosticLog("save_record_selected", { folder, source: "mirror_fallback", size: mirrorRecord.size, savedAt: mirrorRecord.savedAt });
+          return mirrorRecord;
+        }
         if (indexedDbError) throw indexedDbError;
+        diagnosticLog("save_record_missing", { folder });
         return null;
       }
 
@@ -387,12 +554,17 @@ exit`;
 
       let saveInFlight = null;
       function saveOriginalSave(showStatus = true, reason = "manual") {
-        if (saveInFlight) return saveInFlight;
+        if (saveInFlight) {
+          diagnosticLog("save_coalesced", { folder: currentFolder || null, reason });
+          return saveInFlight;
+        }
         const task = (async () => {
           if (!commandInterface || !currentFolder) {
+            diagnosticLog("save_skipped_no_runtime", { reason, hasCommandInterface: Boolean(commandInterface), folder: currentFolder || null });
             if (showStatus) setStatus("原版存档尚未就绪 · 请先启动兼容层");
             return false;
           }
+          diagnosticLog("save_begin", { folder: currentFolder, reason, showStatus });
           try {
             if (showStatus) setStatus(`正在读取原版存档 · ${currentFolder}`);
             const bytes = copyBytes(await withTimeout(
@@ -402,17 +574,21 @@ exit`;
             ));
             const changed = !bytesEqual(lastPersistedBytes, bytes);
             const mustSnapshot = changed || reason === "manual" || reason === "stop";
+            diagnosticLog("save_read_complete", { folder: currentFolder, reason, size: bytes.byteLength, changed, mustSnapshot });
             if (mustSnapshot) {
               const result = await writeStoredSave(currentFolder, bytes, reason);
               lastPersistedBytes = bytes;
+              diagnosticLog("save_write_complete", { folder: currentFolder, reason, size: bytes.byteLength, indexedDb: result.indexedDb, mirror: result.mirror });
               if (showStatus && !result.indexedDb) {
                 setStatus(`原版存档已写入刷新保护镜像 · ${currentFolder} · IndexedDB 暂不可用`);
                 return true;
               }
             }
             if (showStatus) setStatus(`原版存档已保存 · ${currentFolder} · ${bytes.byteLength} bytes`);
+            diagnosticLog("save_complete", { folder: currentFolder, reason, size: bytes.byteLength, snapshot: mustSnapshot });
             return true;
           } catch (error) {
+            diagnosticLog("save_failed", { folder: currentFolder, reason, error: diagnosticError(error) });
             if (showStatus) setStatus(`原版存档保存失败 · ${error.message || error}`);
             return false;
           }
@@ -425,7 +601,13 @@ exit`;
         return task;
       }
 
-      function setStatus(text) { status.textContent = text; }
+      function setStatus(text) {
+        status.textContent = text;
+        if (text !== lastStatusText) {
+          lastStatusText = text;
+          diagnosticLog("status", { text });
+        }
+      }
 
       function markRunStarted(folder) {
         try { localStorage.setItem(RUN_MARKER_KEY, JSON.stringify({ folder, startedAt: Date.now() })); } catch (_) {}
@@ -490,6 +672,7 @@ exit`;
           withTimeout(readStoredSaveRecord(folder), STORAGE_READ_TIMEOUT_MS, "最新存档读取超时").catch(() => null)
         ]);
         const snapshots = snapshotResult || [];
+        diagnosticLog("save_entries_loaded", { folder, snapshotCount: snapshots.length, latestAvailable: Boolean(latestResult) });
         const entries = snapshots.map((snapshot) => ({
           id: snapshot.id,
           folder: snapshot.folder,
@@ -515,6 +698,8 @@ exit`;
 
       async function openSaveDialog() {
         if (loadInProgress || launchInProgress) return;
+        const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
+        diagnosticLog("save_dialog_open_begin", { folder, hasPlayer: Boolean(player), generation: runtimeGeneration });
         selectedSaveEntries = [];
         saveList.textContent = "正在读取存档快照…";
         loadSelectedSaveButton.disabled = true;
@@ -530,7 +715,8 @@ exit`;
           return;
         }
         try {
-          selectedSaveEntries = await getSaveEntries(language.value === "cht" ? "STAR_CHT" : "STAR_CHS");
+          selectedSaveEntries = await getSaveEntries(folder);
+          diagnosticLog("save_dialog_open_complete", { folder, entryCount: selectedSaveEntries.length });
           saveList.textContent = "";
           if (!selectedSaveEntries.length) {
             const empty = document.createElement("p");
@@ -596,6 +782,15 @@ exit`;
         const selected = saveList.querySelector("input[name=save-entry]:checked");
         const entry = selected && selectedSaveEntries[Number(selected.value)];
         if (!entry) return;
+        diagnosticLog("load_selected_begin", {
+          id: entry.id,
+          folder: entry.folder,
+          size: entry.size,
+          createdAt: entry.createdAt,
+          reason: entry.reason,
+          hasPlayer: Boolean(player),
+          generation: runtimeGeneration
+        });
         loadInProgress = true;
         loadSelectedSaveButton.disabled = true;
         closeSaveDialogWindow();
@@ -603,6 +798,7 @@ exit`;
         try {
           if (player) await stopOriginal({ reason: "load" });
           language.value = entry.folder === "STAR_CHT" ? "cht" : "chs";
+          diagnosticLog("load_selected_launch_begin", { folder: entry.folder, afterStopPlayer: Boolean(player), generation: runtimeGeneration });
           await launchOriginal({
             saveBytes: copyBytes(entry.bytes),
             saveSource: `${snapshotReasonLabel(entry.reason)} · ${snapshotTimeLabel(entry.createdAt || Date.now())}`
@@ -611,6 +807,7 @@ exit`;
           setStatus(`读取存档失败 · ${error.message || error}`);
         } finally {
           loadInProgress = false;
+          diagnosticLog("load_selected_finished", { folder: entry.folder, playerCreated: Boolean(player), commandInterfaceReady: Boolean(commandInterface), launchInProgress, generation: runtimeGeneration });
           loadSelectedSaveButton.disabled = false;
           if (!launchInProgress && commandInterface) loadOriginalButton.disabled = false;
         }
@@ -638,8 +835,17 @@ exit`;
         };
       }
 
+      function logEmulatorGeometry(reason) {
+        diagnosticLog("geometry", { reason, geometry: getEmulatorGeometry() });
+      }
+
       function sendEscapeKey() {
-        if (!commandInterface) return;
+        if (!commandInterface) {
+          diagnosticLog("escape_skipped_no_runtime");
+          return;
+        }
+        diagnosticLog("escape_begin", { key: DOSBOX_ESCAPE_KEY });
+        diagnosticLog("escape_api", { simulateKeyPress: typeof commandInterface.simulateKeyPress === "function", sendKeyEvent: typeof commandInterface.sendKeyEvent === "function" });
         try {
           if (typeof commandInterface.simulateKeyPress === "function") {
             commandInterface.simulateKeyPress(DOSBOX_ESCAPE_KEY);
@@ -714,10 +920,35 @@ exit`;
         if (!inputLayer || !commandInterface || typeof commandInterface.sendMouseMotion !== "function") return;
         const viewport = getPointerViewport();
         if (!viewport || !viewport.width || !viewport.height) return;
-        commandInterface.sendMouseMotion(
-          clampUnit((event.clientX - viewport.left) / viewport.width),
-          clampUnit((event.clientY - viewport.top) / viewport.height)
-        );
+        const point = {
+          x: clampUnit((event.clientX - viewport.left) / viewport.width),
+          y: clampUnit((event.clientY - viewport.top) / viewport.height)
+        };
+        commandInterface.sendMouseMotion(point.x, point.y);
+        return point;
+      }
+
+      let lastPointerDiagnosticAt = 0;
+      function logPointerDiagnostic(phase, event, point) {
+        const now = performance.now();
+        if (phase === "move" && now - lastPointerDiagnosticAt < 250) return;
+        lastPointerDiagnosticAt = now;
+        const canvas = host.querySelector("canvas");
+        const viewport = getPointerViewport();
+        const rect = (element) => element ? element.getBoundingClientRect().toJSON() : null;
+        diagnosticLog(`pointer_${phase}`, {
+          pointerId: event.pointerId,
+          pointerType: event.pointerType,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          button: event.button,
+          buttons: event.buttons,
+          normalized: point || null,
+          pointerViewport: viewport,
+          canvas: rect(canvas),
+          inputLayer: rect(inputLayer),
+          canvasPixels: canvas ? { width: canvas.width, height: canvas.height } : null
+        });
       }
 
       function inputButton(event) {
@@ -755,7 +986,8 @@ exit`;
         const onPointerDown = (event) => {
           if (!event.isPrimary) return;
           prevent(event);
-          sendInputMotion(event);
+          const point = sendInputMotion(event);
+          logPointerDiagnostic("down", event, point);
           const button = inputButton(event);
           let buttons = activePointerButtons.get(event.pointerId);
           if (!buttons) {
@@ -771,18 +1003,21 @@ exit`;
         const onPointerMove = (event) => {
           if (!event.isPrimary) return;
           prevent(event);
-          sendInputMotion(event);
+          const point = sendInputMotion(event);
+          logPointerDiagnostic("move", event, point);
         };
         const onPointerUp = (event) => {
           if (!event.isPrimary) return;
           prevent(event);
-          sendInputMotion(event);
+          const point = sendInputMotion(event);
+          logPointerDiagnostic("up", event, point);
           releaseInputButtons(event.pointerId);
           try { inputLayer.releasePointerCapture(event.pointerId); } catch (_) {}
         };
         const onPointerCancel = (event) => {
           if (!event.isPrimary) return;
           prevent(event);
+          logPointerDiagnostic("cancel", event, null);
           releaseInputButtons(event.pointerId);
         };
         const onLostPointerCapture = (event) => releaseInputButtons(event.pointerId);
@@ -815,11 +1050,13 @@ exit`;
           inputLayerCleanup = null;
         };
         syncEmulatorViewport();
+        logEmulatorGeometry("input-layer-installed");
       }
 
       function uninstallInputLayer() {
         if (inputLayerCleanup) inputLayerCleanup();
         else activePointerButtons.clear();
+        diagnosticLog("input_layer_uninstalled");
       }
 
       function setImportantStyle(element, property, value) {
@@ -928,6 +1165,7 @@ exit`;
 
       function scheduleEmulatorAutoStart(generation) {
         if (emulatorAutoStartCleanup) emulatorAutoStartCleanup();
+        diagnosticLog("prerun_watch_started", { generation, playerCreated: Boolean(player) });
         let observer = null;
         let finished = false;
         let attempts = 0;
@@ -942,6 +1180,7 @@ exit`;
         const tryStart = () => {
           if (finished) return true;
           if (generation !== runtimeGeneration || !player) {
+            diagnosticLog("prerun_watch_stale", { generation, runtimeGeneration, playerCreated: Boolean(player) });
             cleanup();
             return true;
           }
@@ -952,11 +1191,14 @@ exit`;
           }
           if (attempts >= 8) return false;
           attempts += 1;
+          diagnosticLog("prerun_button_found", { generation, attempt: attempts, tag: playButton.tagName, className: playButton.className });
           try {
             if (typeof player.setAutoStart === "function") player.setAutoStart(true);
             playButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+            diagnosticLog("prerun_button_triggered", { generation, attempt: attempts });
             setStatus("正在启动 STAROPEN.EXE…");
           } catch (error) {
+            diagnosticLog("prerun_trigger_failed", { generation, attempt: attempts, error: diagnosticError(error) });
             setStatus(`自动启动失败 · ${error.message || error}`);
           }
           cleanup();
@@ -968,6 +1210,7 @@ exit`;
           timers.push(window.setTimeout(tryStart, delay));
         });
         timers.push(window.setTimeout(cleanup, 15000));
+        timers.push(window.setTimeout(() => diagnosticLog("prerun_watch_expired", { generation, attempts, playerCreated: Boolean(player), commandInterfaceReady: Boolean(commandInterface) }), 15000));
         emulatorAutoStartCleanup = cleanup;
         tryStart();
       }
@@ -1002,13 +1245,17 @@ exit`;
       }
 
       async function launchOriginal(options = {}) {
-        if (player || launchInProgress) return;
+        if (player || launchInProgress) {
+          diagnosticLog("launch_skipped_busy", { playerCreated: Boolean(player), launchInProgress, generation: runtimeGeneration });
+          return;
+        }
         launchInProgress = true;
         const generation = ++runtimeGeneration;
         launch.disabled = true;
         language.disabled = true;
         loadOriginalButton.disabled = true;
         const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
+        diagnosticLog("launch_begin", { generation, folder, selectedSave: Boolean(options.saveBytes), saveSource: options.saveSource || null });
         currentFolder = folder;
         markRunStarted(folder);
         commandInterface = null;
@@ -1038,10 +1285,12 @@ exit`;
           }
           const storedSave = storedSaveRecord ? copyBytes(storedSaveRecord.bytes) : null;
           lastPersistedBytes = storedSave ? copyBytes(storedSave) : null;
+          diagnosticLog("launch_save_selected", { generation, folder, source: storedSaveRecord ? storedSaveRecord.source : "default", size: storedSave ? storedSave.byteLength : 0 });
           const saveSource = options.saveSource || (storedSaveRecord
             ? (storedSaveRecord.source === "mirror" ? "已恢复刷新保护镜像" : "已恢复浏览器存档")
             : "可保存原版存档");
           let loadedCount = 0;
+          diagnosticLog("assets_load_begin", { generation, folder, count: ORIGINAL_FILES.length });
           const initFs = await Promise.all(ORIGINAL_FILES.map(async (file) => {
             const asset = await readOriginalAsset(folder, file);
             loadedCount += 1;
@@ -1049,6 +1298,7 @@ exit`;
             const contents = file === "STARSAVE.SSS" && storedSave ? storedSave : asset;
             return { path: `${folder}/${file}`, contents };
           }));
+          diagnosticLog("assets_load_complete", { generation, folder, count: initFs.length, saveInjected: Boolean(storedSave) });
           const config = DOSBOX_CONFIG.replace("STAR_CHS", language.value === "cht" ? "STAR_CHT" : "STAR_CHS");
           player = Dos(host, {
             dosboxConf: config,
@@ -1056,9 +1306,11 @@ exit`;
             pathPrefix: "compat/runtime/emulators/",
             backend: "dosboxX",
             onEvent: (event, argument) => {
+              diagnosticLog("runtime_event", { generation, event, argumentType: typeof argument, argumentKeys: argument && typeof argument === "object" ? Object.keys(argument).slice(0, 12) : [] });
               if (generation !== runtimeGeneration) return;
               if (event === "ci-ready" && argument && typeof argument.fsReadFile === "function") {
                 commandInterface = argument;
+                diagnosticLog("ci_ready", { generation, folder, methods: ["fsReadFile", "fsWriteFile", "sendMouseMotion", "sendMouseButton", "simulateKeyPress", "sendKeyEvent"].filter((name) => typeof argument[name] === "function") });
                 installInputLayer();
                 startAutosave();
                 void requestPersistentStorage();
@@ -1066,6 +1318,10 @@ exit`;
                 saveOriginalButton.disabled = false;
                 loadOriginalButton.disabled = false;
                 sendEscapeButton.disabled = false;
+                logEmulatorGeometry("ci-ready");
+                [100, 500, 1500].forEach((delay) => window.setTimeout(() => {
+                  if (generation === runtimeGeneration && player) logEmulatorGeometry(`ci-ready+${delay}ms`);
+                }, delay));
                 setStatus(`原版兼容层已启动 · ${saveSource}`);
               }
             },
@@ -1073,6 +1329,7 @@ exit`;
             renderAspect: true,
             autoStart: true
           });
+          diagnosticLog("player_created", { generation, folder, playerCreated: Boolean(player), canvasPresent: Boolean(host.querySelector("canvas")) });
           watchEmulatorViewport();
           installInputLayer();
           scheduleEmulatorAutoStart(generation);
@@ -1080,6 +1337,7 @@ exit`;
           setStatus("兼容层已创建 · 正在启动 STAROPEN.EXE…");
         } catch (error) {
           if (generation !== runtimeGeneration) return;
+          diagnosticLog("launch_failed", { generation, folder, error: diagnosticError(error) });
           if (emulatorAutoStartCleanup) emulatorAutoStartCleanup();
           stopAutosave();
           uninstallInputLayer();
@@ -1100,12 +1358,17 @@ exit`;
             language.disabled = false;
             loadOriginalButton.disabled = false;
           }
+          diagnosticLog("launch_finished", { generation, folder, playerCreated: Boolean(player), commandInterfaceReady: Boolean(commandInterface), launchInProgress });
         }
       }
 
       async function stopOriginal(options = {}) {
         const activePlayer = player;
-        if (!activePlayer) return true;
+        if (!activePlayer) {
+          diagnosticLog("stop_skipped_no_player", { reason: options.reason || "manual", generation: runtimeGeneration });
+          return true;
+        }
+        diagnosticLog("stop_begin", { reason: options.reason || "manual", folder: currentFolder || null, generation: runtimeGeneration, commandInterfaceReady: Boolean(commandInterface) });
         player = null;
         runtimeGeneration += 1;
         if (emulatorAutoStartCleanup) emulatorAutoStartCleanup();
@@ -1126,17 +1389,19 @@ exit`;
               "停止前存档读取超时"
             );
             saveTimedOut = !saveResult;
-          } catch (_) {
+          } catch (error) {
             saveTimedOut = true;
             saveInFlight = null;
+            diagnosticLog("stop_save_failed", { error: diagnosticError(error) });
           }
         }
 
         let stopTimedOut = false;
         try {
           await withTimeout(activePlayer.stop(), PLAYER_STOP_TIMEOUT_MS, "兼容层停止超时");
-        } catch (_) {
+        } catch (error) {
           stopTimedOut = true;
+          diagnosticLog("player_stop_failed", { error: diagnosticError(error) });
         }
         clearRunMarker();
         commandInterface = null;
@@ -1152,6 +1417,7 @@ exit`;
         sendEscapeButton.disabled = true;
         loadOriginalButton.disabled = false;
         stop.disabled = true;
+        diagnosticLog("stop_finished", { reason: options.reason || "manual", saveTimedOut, stopTimedOut, generation: runtimeGeneration });
         if (options.reason === "load") {
           if (stopTimedOut || saveTimedOut) setStatus("旧兼容层已隔离，正在启动选中的存档…");
           return !stopTimedOut;
@@ -1171,6 +1437,9 @@ exit`;
       importSaveButton.addEventListener("click", () => importSaveFile.click());
       importSaveFile.addEventListener("change", importSaveFromFile);
       stop.addEventListener("click", stopOriginal);
+      copyDiagnosticsButton.addEventListener("click", copyDiagnosticLog);
+      downloadDiagnosticsButton.addEventListener("click", downloadDiagnosticLog);
+      clearDiagnosticsButton.addEventListener("click", clearDiagnosticLog);
       document.addEventListener("pointerup", scheduleActivitySave, true);
       document.addEventListener("pointercancel", scheduleActivitySave, true);
       document.addEventListener("keyup", scheduleActivitySave, true);
@@ -1185,7 +1454,19 @@ exit`;
       window.addEventListener("beforeunload", () => requestSaveBeforePageExit("visibility"));
       window.addEventListener("freeze", () => requestSaveBeforePageExit("visibility"));
       if (hasInterruptedRun()) setStatus("检测到上次运行异常中断 · 可通过读取存档恢复历史快照");
-      window.StarDreamCompat = { launch: launchOriginal, save: saveOriginalSave, stop: stopOriginal, geometry: getEmulatorGeometry };
+      window.StarDreamCompat = {
+        launch: launchOriginal,
+        save: saveOriginalSave,
+        stop: stopOriginal,
+        geometry: getEmulatorGeometry,
+        diagnostics: {
+          get: () => diagnosticEntries.slice(),
+          text: getDiagnosticText,
+          clear: clearDiagnosticLog,
+          copy: copyDiagnosticLog,
+          download: downloadDiagnosticLog
+        }
+      };
       const query = new URLSearchParams(window.location.search);
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia("(max-width: 700px)").matches;
       if (query.get("autostart") === "1" || (isMobile && query.get("autostart") !== "0")) setTimeout(launchOriginal, 180);
