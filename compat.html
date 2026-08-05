@@ -930,6 +930,7 @@ exit`;
         if (emulatorAutoStartCleanup) emulatorAutoStartCleanup();
         let observer = null;
         let finished = false;
+        let attempts = 0;
         const timers = [];
         const cleanup = () => {
           if (finished) return;
@@ -945,10 +946,15 @@ exit`;
             return true;
           }
           const playButton = host.querySelector(".play-button");
-          if (!playButton) return false;
+          if (!playButton) {
+            if (attempts > 0) cleanup();
+            return false;
+          }
+          if (attempts >= 8) return false;
+          attempts += 1;
           try {
             if (typeof player.setAutoStart === "function") player.setAutoStart(true);
-            playButton.click();
+            playButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
             setStatus("正在启动 STAROPEN.EXE…");
           } catch (error) {
             setStatus(`自动启动失败 · ${error.message || error}`);
@@ -958,9 +964,10 @@ exit`;
         };
         observer = new MutationObserver(tryStart);
         observer.observe(host, { childList: true, subtree: true });
-        [0, 50, 150, 300, 800, 1500, 3000, 6000, 10000].forEach((delay) => {
+        [0, 100, 250, 500, 1000, 2000, 4000, 8000, 12000].forEach((delay) => {
           timers.push(window.setTimeout(tryStart, delay));
         });
+        timers.push(window.setTimeout(cleanup, 15000));
         emulatorAutoStartCleanup = cleanup;
         tryStart();
       }
