@@ -1,7 +1,7 @@
 {
   "workspace": "StarDream",
   "scope": "当前工作区内的《明星志愿一》发行包拆解与网页端重建",
-  "updated_at": "2026-08-04",
+  "updated_at": "2026-08-05",
   "entrypoints": {
     "report": "analysis/technical-decomposition.md",
     "registry": "analysis/analysis_interface_registry.json",

@@ -18,7 +18,9 @@
     "restore": "compare the timestamped IndexedDB latest record with the localStorage mirror and replace the selected initFs STARSAVE.SSS contents before DOSBox-X starts",
     "write": "read the running virtual file through CommandInterface.fsReadFile, synchronously update the refresh mirror, then commit the latest record and historical snapshot to IndexedDB",
     "autosave": "baseline save after ci-ready, 1.5-second debounced saves after pointer/key activity, then an 8-second poll, plus visibility/pagehide/beforeunload/freeze best-effort saves",
-    "history": "keep the latest 12 changed snapshots per language pack"
+    "history": "keep the latest 12 changed snapshots per language pack",
+    "load_switch": "read snapshot and latest records in parallel with bounded storage reads; invalidate the old runtime generation before stopping it; bound virtual save reads and player.stop so a stalled WASM runtime cannot block selected-save launch; fall back to the synchronous localStorage mirror",
+    "pointer_mapping": "derive the pointer viewport from the actual Canvas bounding rectangle and native frame width/height using aspect-fit letterboxing; keep the transparent input layer aligned to that Canvas rectangle so horizontal and vertical scaling use one coordinate space"
   },
   "deployment": {
     "channel": "GitHub Pages via GitHub Actions",
