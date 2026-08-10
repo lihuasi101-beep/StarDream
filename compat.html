@@ -994,6 +994,8 @@ exit`;
 
       const DOSBOX_CTRL_KEY = 341;
       const STOCK_CHEAT_SEQUENCE = [65, 76, 69, 88, 56];
+      const STOCK_CHEAT_HOLD_MS = 140;
+      const STOCK_CHEAT_GAP_MS = 180;
       const waitForKeySequence = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration));
 
       async function sendStockCheat() {
@@ -1002,9 +1004,9 @@ exit`;
           return;
         }
         const ci = commandInterface;
-        if (typeof ci.sendKeyEvent !== "function" || typeof ci.simulateKeyPress !== "function") {
+        if (typeof ci.sendKeyEvent !== "function") {
           setStatus("股票秘籍暂不可用 · 当前运行时不支持键盘注入");
-          diagnosticLog("stock_cheat_unavailable", { sendKeyEvent: typeof ci.sendKeyEvent === "function", simulateKeyPress: typeof ci.simulateKeyPress === "function" });
+          diagnosticLog("stock_cheat_unavailable", { sendKeyEvent: false, simulateKeyPress: typeof ci.simulateKeyPress === "function" });
           return;
         }
         stockCheatButton.disabled = true;
@@ -1013,10 +1015,16 @@ exit`;
         try {
           ci.sendKeyEvent(DOSBOX_CTRL_KEY, true);
           ctrlHeld = true;
+          diagnosticLog("stock_cheat_key_down", { key: "CTRL", keyCode: DOSBOX_CTRL_KEY });
           await waitForKeySequence(80);
           for (const keyCode of STOCK_CHEAT_SEQUENCE) {
-            ci.simulateKeyPress(keyCode);
-            await waitForKeySequence(90);
+            const key = String.fromCharCode(keyCode);
+            ci.sendKeyEvent(keyCode, true);
+            diagnosticLog("stock_cheat_key_down", { key, keyCode });
+            await waitForKeySequence(STOCK_CHEAT_HOLD_MS);
+            ci.sendKeyEvent(keyCode, false);
+            diagnosticLog("stock_cheat_key_up", { key, keyCode });
+            await waitForKeySequence(STOCK_CHEAT_GAP_MS);
           }
           diagnosticLog("stock_cheat_complete", { sequence: "CTRL+ALEX8" });
           setStatus("股票秘籍已发送 · 请在原版编辑界面修改股票价格");
@@ -1024,7 +1032,10 @@ exit`;
           diagnosticLog("stock_cheat_failed", { error: diagnosticError(error) });
           setStatus(`股票秘籍发送失败 · ${error.message || error}`);
         } finally {
-          if (ctrlHeld) ci.sendKeyEvent(DOSBOX_CTRL_KEY, false);
+          if (ctrlHeld) {
+            ci.sendKeyEvent(DOSBOX_CTRL_KEY, false);
+            diagnosticLog("stock_cheat_key_up", { key: "CTRL", keyCode: DOSBOX_CTRL_KEY });
+          }
           stockCheatButton.disabled = !commandInterface;
         }
       }

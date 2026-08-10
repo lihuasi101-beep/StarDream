@@ -141,4 +141,4 @@ The `Diagnostics` disclosure below the control bar provides copy, download and c
 三种形态共享同一产品主题和关键经营语义；`index.html` 是可持续改造的经营重建层，`compat.html` 是原始二进制验证入口。
 导入单个外挂 `STARSAVE.SSS` 时，页面只替换主存档内容，先读取并保留当前语言包已有的 `STARSA*.SSS` 辅助槽文件，再写入新的主存档；如果既有存档无法读取，导入会失败并保留原记录，避免用不完整的外挂文件覆盖本地槽位。
 
-原版秘籍入口已增加网页按钮。按钮在 `ci-ready` 后发送 js-dos 键码 `341` 按住 Ctrl，再依次发送 ASCII `A`、`L`、`E`、`X`、`8`，最后释放 Ctrl；原版编辑界面仍负责实际修改股票价格，网页只提供可视化触发入口并记录发送结果。
+原版秘籍入口已增加网页按钮。按钮在 `ci-ready` 后发送 js-dos 键码 `341` 按住 Ctrl，再以真实按下/保持/释放节奏依次发送 ASCII `A`、`L`、`E`、`X`、`8`，最后释放 Ctrl；原版编辑界面仍负责实际修改股票价格，网页只提供可视化触发入口并记录逐键发送结果。
