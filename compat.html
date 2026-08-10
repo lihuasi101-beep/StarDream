@@ -29,6 +29,7 @@
     .control-button.save { color:var(--ink); background:var(--yellow); }
     .control-button.load { color:var(--ink); background:#9ed8e5; }
     .control-button.escape { color:var(--paper); background:#8b6cc7; }
+    .control-button.cheat { color:var(--ink); background:#d8a84f; }
     .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
     .diagnostics-panel { margin:0 0 12px; border:1px solid rgba(247,239,217,.18); background:rgba(11,16,27,.82); color:var(--paper); }
     .diagnostics-panel summary { min-height:40px; padding:11px 12px; cursor:pointer; color:var(--teal); font-size:11px; font-weight:900; }
@@ -77,6 +78,7 @@
       <button class="control-button save" id="save-original" type="button" disabled>◆ 保存存档</button>
       <button class="control-button load" id="load-original" type="button">↶ 读取存档</button>
       <button class="control-button escape" id="send-escape" type="button" disabled>↩ ESC 返回</button>
+      <button class="control-button cheat" id="stock-cheat" type="button" disabled>♣ 股票秘籍</button>
       <button class="control-button stop" id="stop" type="button" disabled>■ 停止</button>
       <div class="status" id="status" role="status" aria-live="polite">兼容层待启动 · DOSBox-X WebAssembly 8.4.1</div>
     </section>
@@ -116,6 +118,7 @@
       const saveOriginalButton = document.getElementById("save-original");
       const loadOriginalButton = document.getElementById("load-original");
       const sendEscapeButton = document.getElementById("send-escape");
+      const stockCheatButton = document.getElementById("stock-cheat");
       const stop = document.getElementById("stop");
       const language = document.getElementById("language");
       const host = document.getElementById("dosbox");
@@ -989,6 +992,43 @@ exit`;
         }
       }
 
+      const DOSBOX_CTRL_KEY = 341;
+      const STOCK_CHEAT_SEQUENCE = [65, 76, 69, 88, 56];
+      const waitForKeySequence = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration));
+
+      async function sendStockCheat() {
+        if (!commandInterface) {
+          diagnosticLog("stock_cheat_skipped_no_runtime");
+          return;
+        }
+        const ci = commandInterface;
+        if (typeof ci.sendKeyEvent !== "function" || typeof ci.simulateKeyPress !== "function") {
+          setStatus("股票秘籍暂不可用 · 当前运行时不支持键盘注入");
+          diagnosticLog("stock_cheat_unavailable", { sendKeyEvent: typeof ci.sendKeyEvent === "function", simulateKeyPress: typeof ci.simulateKeyPress === "function" });
+          return;
+        }
+        stockCheatButton.disabled = true;
+        let ctrlHeld = false;
+        diagnosticLog("stock_cheat_begin", { ctrlKey: DOSBOX_CTRL_KEY, sequence: "CTRL+ALEX8" });
+        try {
+          ci.sendKeyEvent(DOSBOX_CTRL_KEY, true);
+          ctrlHeld = true;
+          await waitForKeySequence(80);
+          for (const keyCode of STOCK_CHEAT_SEQUENCE) {
+            ci.simulateKeyPress(keyCode);
+            await waitForKeySequence(90);
+          }
+          diagnosticLog("stock_cheat_complete", { sequence: "CTRL+ALEX8" });
+          setStatus("股票秘籍已发送 · 请在原版编辑界面修改股票价格");
+        } catch (error) {
+          diagnosticLog("stock_cheat_failed", { error: diagnosticError(error) });
+          setStatus(`股票秘籍发送失败 · ${error.message || error}`);
+        } finally {
+          if (ctrlHeld) ci.sendKeyEvent(DOSBOX_CTRL_KEY, false);
+          stockCheatButton.disabled = !commandInterface;
+        }
+      }
+
       function isEmulatorFullscreen() {
         return document.fullscreenElement === host || host.classList.contains("jsdos-fullscreen-workaround");
       }
@@ -1454,6 +1494,7 @@ exit`;
                 saveOriginalButton.disabled = false;
                 loadOriginalButton.disabled = false;
                 sendEscapeButton.disabled = false;
+                stockCheatButton.disabled = false;
                 logEmulatorGeometry("ci-ready");
                 [100, 500, 1500].forEach((delay) => window.setTimeout(() => {
                   if (generation === runtimeGeneration && player) logEmulatorGeometry(`ci-ready+${delay}ms`);
@@ -1485,6 +1526,7 @@ exit`;
           lastPersistedFilesSignature = "";
           saveOriginalButton.disabled = true;
           sendEscapeButton.disabled = true;
+          stockCheatButton.disabled = true;
           loadOriginalButton.disabled = false;
           setStatus(`启动失败 · ${error.message || error}`);
         } finally {
@@ -1553,6 +1595,7 @@ exit`;
         language.disabled = false;
         saveOriginalButton.disabled = true;
         sendEscapeButton.disabled = true;
+        stockCheatButton.disabled = true;
         loadOriginalButton.disabled = false;
         stop.disabled = true;
         diagnosticLog("stop_finished", { reason: options.reason || "manual", saveTimedOut, stopTimedOut, generation: runtimeGeneration });
@@ -1570,6 +1613,7 @@ exit`;
       saveOriginalButton.addEventListener("click", () => { saveOriginalSave(true); });
       loadOriginalButton.addEventListener("click", openSaveDialog);
       sendEscapeButton.addEventListener("click", sendEscapeKey);
+      stockCheatButton.addEventListener("click", sendStockCheat);
       closeSaveDialog.addEventListener("click", closeSaveDialogWindow);
       loadSelectedSaveButton.addEventListener("click", loadSelectedSave);
       importSaveButton.addEventListener("click", () => importSaveFile.click());
