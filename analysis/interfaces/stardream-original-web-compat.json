@@ -22,7 +22,7 @@
     "history": "keep the latest 12 changed snapshots per language pack",
     "load_switch": "read snapshot and latest records in parallel with bounded storage reads; invalidate the old runtime generation before stopping it; bound virtual save reads and player.stop so a stalled WASM runtime cannot block selected-save launch; fall back to the synchronous localStorage mirror; if js-dos 8.4.1 exposes its prerun play button during the async autoStart race, trigger that fixed-version control and keep save/load disabled until ci-ready",
     "pointer_mapping": "the DOS program's active pointer surface is the top-aligned 640x420 portion of its 640x480 Canvas; derive that viewport from the actual Canvas rectangle, keep the transparent input layer on the same top edge, and disable input outside the active surface",
-    "cheat_entry": "after ci-ready, the visible Stock Cheat button holds js-dos Ctrl key code 341 while sending ASCII A, L, E, X, 8 with real keydown/hold/keyup timing, then releases Ctrl; the original DOS editor remains responsible for changing stock prices",
+    "cheat_entry": "after ci-ready and only while the original company interface is open, the visible Stock Cheat button holds js-dos Ctrl key code 341 while sending ASCII A, L, E, X, releases Ctrl, then sends ASCII 8 without the modifier; the original DOS editor remains responsible for changing stock prices",
     "diagnostics": "compat.html persists up to 300 structured diagnostic entries in localStorage, records launch/load/stop/prerun/ci-ready/save timeout/runtime error/geometry and sampled pointer events without storing save bytes, and exposes copy/download/clear controls plus window.StarDreamCompat.diagnostics"
   },
   "deployment": {

@@ -78,7 +78,7 @@
       <button class="control-button save" id="save-original" type="button" disabled>◆ 保存存档</button>
       <button class="control-button load" id="load-original" type="button">↶ 读取存档</button>
       <button class="control-button escape" id="send-escape" type="button" disabled>↩ ESC 返回</button>
-      <button class="control-button cheat" id="stock-cheat" type="button" disabled>♣ 股票秘籍</button>
+      <button class="control-button cheat" id="stock-cheat" type="button" title="请先进入原版公司界面：按住 Ctrl 依次按 ALEX，松开 Ctrl 后按 8" disabled>♣ 股票秘籍</button>
       <button class="control-button stop" id="stop" type="button" disabled>■ 停止</button>
       <div class="status" id="status" role="status" aria-live="polite">兼容层待启动 · DOSBox-X WebAssembly 8.4.1</div>
     </section>
@@ -993,7 +993,8 @@ exit`;
       }
 
       const DOSBOX_CTRL_KEY = 341;
-      const STOCK_CHEAT_SEQUENCE = [65, 76, 69, 88, 56];
+      const STOCK_CHEAT_PREFIX = [65, 76, 69, 88];
+      const STOCK_CHEAT_FINAL_KEY = 56;
       const STOCK_CHEAT_HOLD_MS = 140;
       const STOCK_CHEAT_GAP_MS = 180;
       const waitForKeySequence = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration));
@@ -1011,29 +1012,55 @@ exit`;
         }
         stockCheatButton.disabled = true;
         let ctrlHeld = false;
-        diagnosticLog("stock_cheat_begin", { ctrlKey: DOSBOX_CTRL_KEY, sequence: "CTRL+ALEX8" });
+        let activeKeyCode = null;
+        diagnosticLog("stock_cheat_begin", {
+          ctrlKey: DOSBOX_CTRL_KEY,
+          sequence: "CTRL+ALEX -> release CTRL -> 8",
+          requirement: "company-interface"
+        });
         try {
           ci.sendKeyEvent(DOSBOX_CTRL_KEY, true);
           ctrlHeld = true;
           diagnosticLog("stock_cheat_key_down", { key: "CTRL", keyCode: DOSBOX_CTRL_KEY });
           await waitForKeySequence(80);
-          for (const keyCode of STOCK_CHEAT_SEQUENCE) {
+          for (const keyCode of STOCK_CHEAT_PREFIX) {
             const key = String.fromCharCode(keyCode);
             ci.sendKeyEvent(keyCode, true);
+            activeKeyCode = keyCode;
             diagnosticLog("stock_cheat_key_down", { key, keyCode });
             await waitForKeySequence(STOCK_CHEAT_HOLD_MS);
             ci.sendKeyEvent(keyCode, false);
+            activeKeyCode = null;
             diagnosticLog("stock_cheat_key_up", { key, keyCode });
             await waitForKeySequence(STOCK_CHEAT_GAP_MS);
           }
-          diagnosticLog("stock_cheat_complete", { sequence: "CTRL+ALEX8" });
-          setStatus("股票秘籍已发送 · 请在原版编辑界面修改股票价格");
+          ci.sendKeyEvent(DOSBOX_CTRL_KEY, false);
+          ctrlHeld = false;
+          diagnosticLog("stock_cheat_key_up", { key: "CTRL", keyCode: DOSBOX_CTRL_KEY });
+          diagnosticLog("stock_cheat_ctrl_released", { beforeKey: "8", keyCode: DOSBOX_CTRL_KEY });
+          await waitForKeySequence(STOCK_CHEAT_GAP_MS);
+
+          const finalKey = String.fromCharCode(STOCK_CHEAT_FINAL_KEY);
+          ci.sendKeyEvent(STOCK_CHEAT_FINAL_KEY, true);
+          activeKeyCode = STOCK_CHEAT_FINAL_KEY;
+          diagnosticLog("stock_cheat_key_down", { key: finalKey, keyCode: STOCK_CHEAT_FINAL_KEY, modifier: false });
+          await waitForKeySequence(STOCK_CHEAT_HOLD_MS);
+          ci.sendKeyEvent(STOCK_CHEAT_FINAL_KEY, false);
+          activeKeyCode = null;
+          diagnosticLog("stock_cheat_key_up", { key: finalKey, keyCode: STOCK_CHEAT_FINAL_KEY, modifier: false });
+          diagnosticLog("stock_cheat_complete", { sequence: "CTRL+ALEX -> release CTRL -> 8" });
+          setStatus("股票秘籍序列已完成 · 请在公司界面进入数值编辑");
         } catch (error) {
           diagnosticLog("stock_cheat_failed", { error: diagnosticError(error) });
           setStatus(`股票秘籍发送失败 · ${error.message || error}`);
         } finally {
+          if (activeKeyCode !== null) {
+            ci.sendKeyEvent(activeKeyCode, false);
+            diagnosticLog("stock_cheat_key_up", { key: String.fromCharCode(activeKeyCode), keyCode: activeKeyCode, recovery: true });
+          }
           if (ctrlHeld) {
             ci.sendKeyEvent(DOSBOX_CTRL_KEY, false);
+            ctrlHeld = false;
             diagnosticLog("stock_cheat_key_up", { key: "CTRL", keyCode: DOSBOX_CTRL_KEY });
           }
           stockCheatButton.disabled = !commandInterface;
