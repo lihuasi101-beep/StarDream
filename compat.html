@@ -409,8 +409,7 @@
           const remote = cloudRecordToLocal(await readCloudSave(folder));
           if (remote && (!localRecord || remote.savedAt > localRecord.savedAt)) {
             diagnosticLog("cloud_startup_selected", { folder, source: "supabase", localSavedAt: localRecord ? localRecord.savedAt : 0, remoteSavedAt: remote.savedAt, size: remote.size });
-            void writeStoredSave(folder, remote.bytes, "cloud-download", remote.files)
-              .catch((error) => diagnosticLog("cloud_local_mirror_failed", { folder, error: diagnosticError(error) }));
+            await writeStoredSave(folder, remote.bytes, "cloud-download", remote.files);
             return remote;
           }
           if (localRecord && (!remote || localRecord.savedAt > remote.savedAt)) {
@@ -481,7 +480,7 @@
       }
 
       async function initializeCloudSync() {
-        consumeCloudAuthCallback();
+        const callbackConsumed = consumeCloudAuthCallback();
         if (!getSupabaseConfig()) {
           updateCloudUi();
           diagnosticLog("cloud_disabled", { reason: "missing_config" });
@@ -490,7 +489,24 @@
         try {
           await ensureCloudUser();
           updateCloudUi();
-          if (cloudUser) diagnosticLog("cloud_session_ready", { userId: cloudUser.id });
+          if (cloudUser) {
+            const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
+            let localRecord = null;
+            try {
+              localRecord = await readStoredSaveRecord(folder);
+              const selectedRecord = await chooseCloudSave(folder, localRecord);
+              diagnosticLog("cloud_session_ready", {
+                userId: cloudUser.id,
+                folder,
+                callbackConsumed,
+                localSavedAt: localRecord ? localRecord.savedAt : 0,
+                selectedSource: selectedRecord ? selectedRecord.source : "none",
+                selectedSavedAt: selectedRecord ? selectedRecord.savedAt : 0
+              });
+            } catch (error) {
+              diagnosticLog("cloud_session_prime_failed", { folder, error: diagnosticError(error) });
+            }
+          }
         } catch (error) {
           writeCloudSession(null);
           setCloudDialogStatus(error.message || String(error));
@@ -1795,7 +1811,7 @@ exit`;
               if (!storedSaveRecord) setStatus(`本地存档不可用 · ${error.message || error}`);
             }
           }
-          if (!options.saveBytes && storedSaveRecord && getSupabaseConfig() && cloudSession) {
+          if (!options.saveBytes && getSupabaseConfig() && cloudSession) {
             setStatus("正在比较本地与云端存档…");
             storedSaveRecord = await chooseCloudSave(folder, storedSaveRecord);
           }
