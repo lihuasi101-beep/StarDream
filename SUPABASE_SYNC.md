@@ -8,6 +8,9 @@
 2. 在 SQL Editor 执行 [`supabase/schema.sql`](supabase/schema.sql) 中的表和 RLS 策略。
 3. 在 Authentication → URL Configuration 中把 Site URL 设为：
    `https://lihuasi101-beep.github.io/StarDream/`
+   同时在 Redirect URLs 中加入：
+   `https://lihuasi101-beep.github.io/StarDream/compat.html`
+   不要填写 `https://lihuasi101-beep.github.io/`，该根域名不是本项目的 Pages 地址，会返回 GitHub 404。
 4. 在 GitHub 仓库 Settings → Secrets and variables → Actions 中新增：
    - `STARDREAM_SUPABASE_URL`：Supabase Project URL
    - `STARDREAM_SUPABASE_ANON_KEY`：Supabase 公共 anon key

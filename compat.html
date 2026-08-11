@@ -234,6 +234,13 @@
         return url && anonKey ? { url, anonKey } : null;
       }
 
+      function getCloudRedirectUrl() {
+        const callback = new URL(window.location.href);
+        callback.search = "";
+        callback.hash = "";
+        return callback.href;
+      }
+
       function readCloudSession() {
         try {
           const value = JSON.parse(localStorage.getItem(SUPABASE_SESSION_KEY) || "null");
@@ -423,10 +430,10 @@
         if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("请输入有效邮箱");
         await cloudFetch("/auth/v1/otp", {
           method: "POST",
-          body: JSON.stringify({ email, create_user: true, email_redirect_to: `${window.location.origin}${window.location.pathname}` })
+          body: JSON.stringify({ email, create_user: true, email_redirect_to: getCloudRedirectUrl() })
         });
         setCloudDialogStatus("登录链接已发送，请打开邮箱中的链接完成登录。");
-        diagnosticLog("cloud_login_link_sent", { emailDomain: email.split("@")[1] || "" });
+        diagnosticLog("cloud_login_link_sent", { emailDomain: email.split("@")[1] || "", redirectTo: getCloudRedirectUrl() });
       }
 
       function setCloudDialogStatus(text) {
