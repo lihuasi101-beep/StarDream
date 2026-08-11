@@ -10,4 +10,6 @@
 pwsh -NoProfile -File .\publish-github.ps1 -OutputPath .\github-pages-build
 ```
 
+Supabase 云存档配置见 [`SUPABASE_SYNC.md`](SUPABASE_SYNC.md)。未配置 GitHub Actions Secrets 时，兼容页会自动保持本地存档模式。
+
 脚本会生成自包含的 Web Edition 和原版兼容模式，包含本地 DOSBox-X 运行时、两套原始语言目录及第三方许可说明；不依赖外部发布服务，原版资源按需从同一 Pages 站点加载。

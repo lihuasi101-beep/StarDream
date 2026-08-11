@@ -31,6 +31,9 @@ jobs:
 
       - name: Build static artifact
         shell: pwsh
+        env:
+          STARDREAM_SUPABASE_URL: ${{ secrets.STARDREAM_SUPABASE_URL }}
+          STARDREAM_SUPABASE_ANON_KEY: ${{ secrets.STARDREAM_SUPABASE_ANON_KEY }}
         run: ./publish-github.ps1 -OutputPath "$env:RUNNER_TEMP/stardream-pages"
 
       - name: Upload Pages artifact

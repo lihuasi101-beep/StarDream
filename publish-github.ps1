@@ -8,6 +8,7 @@ $artifactOutputPath = $OutputPath
 $requiredFiles = @(
   'index.html',
   'compat.html',
+  'supabase-config.js',
   'THIRD_PARTY_NOTICES.md',
   'analysis_original_dosbox.png',
   'STAR_CHS',
@@ -37,6 +38,7 @@ New-Item -ItemType Directory -Force -Path $emulatorOutput | Out-Null
 Copy-Item -LiteralPath @(
   (Join-Path $publishProjectRoot 'index.html'),
   (Join-Path $publishProjectRoot 'compat.html'),
+  (Join-Path $publishProjectRoot 'supabase-config.js'),
   (Join-Path $publishProjectRoot 'THIRD_PARTY_NOTICES.md'),
   (Join-Path $publishProjectRoot 'analysis_original_dosbox.png'),
   (Join-Path $publishProjectRoot 'analysis_original_dosbox_after_enter.png'),
@@ -57,6 +59,12 @@ Copy-Item -LiteralPath @(
   (Join-Path $publishProjectRoot 'compat/runtime/emulators/wdosbox-x.js'),
   (Join-Path $publishProjectRoot 'compat/runtime/emulators/wdosbox-x.wasm')
 ) -Destination $emulatorOutput -Force
+
+$supabaseConfig = [ordered]@{
+  url = [string]$env:STARDREAM_SUPABASE_URL
+  anonKey = [string]$env:STARDREAM_SUPABASE_ANON_KEY
+} | ConvertTo-Json -Compress
+Set-Content -LiteralPath (Join-Path $artifactOutputPath 'supabase-config.js') -Value ("window.STARDREAM_SUPABASE_CONFIG = {0};" -f $supabaseConfig) -Encoding UTF8
 
 $files = Get-ChildItem -File -Recurse -LiteralPath $artifactOutputPath
 $bytes = ($files | Measure-Object -Property Length -Sum).Sum

@@ -30,6 +30,7 @@
     .control-button.load { color:var(--ink); background:#9ed8e5; }
     .control-button.escape { color:var(--paper); background:#8b6cc7; }
     .control-button.cheat { color:var(--ink); background:#d8a84f; }
+    .control-button.cloud { color:var(--ink); background:#8ed0b8; }
     .status { min-height:37px; display:flex; align-items:center; flex:1 1 230px; padding:0 11px; border-left:3px solid var(--yellow); background:rgba(39,52,76,.8); color:var(--paper); font-size:11px; }
     .diagnostics-panel { margin:0 0 12px; border:1px solid rgba(247,239,217,.18); background:rgba(11,16,27,.82); color:var(--paper); }
     .diagnostics-panel summary { min-height:40px; padding:11px 12px; cursor:pointer; color:var(--teal); font-size:11px; font-weight:900; }
@@ -79,6 +80,7 @@
       <button class="control-button load" id="load-original" type="button">↶ 读取存档</button>
       <button class="control-button escape" id="send-escape" type="button" disabled>↩ ESC 返回</button>
       <button class="control-button cheat" id="stock-cheat" type="button" title="请先进入原版公司界面：按住 Ctrl 依次按 ALEX，松开 Ctrl 后按 8" disabled>♣ 股票秘籍</button>
+      <button class="control-button cloud" id="cloud-sync" type="button">☁ 云同步</button>
       <button class="control-button stop" id="stop" type="button" disabled>■ 停止</button>
       <div class="status" id="status" role="status" aria-live="polite">兼容层待启动 · DOSBox-X WebAssembly 8.4.1</div>
     </section>
@@ -104,12 +106,27 @@
         </div>
       </div>
     </dialog>
+    <dialog class="save-dialog" id="cloud-dialog">
+      <div class="save-dialog-inner">
+        <h2>云端存档</h2>
+        <p class="save-dialog-help" id="cloud-dialog-status">使用 Supabase 邮箱链接登录后，可在不同设备恢复同一份存档。本地存档仍会保留。</p>
+        <label for="cloud-email">邮箱</label>
+        <input id="cloud-email" type="email" autocomplete="email" placeholder="name@example.com" style="display:block;width:100%;min-height:42px;margin-top:7px;padding:0 10px;border:1px solid rgba(247,239,217,.2);background:var(--ink-soft);color:var(--paper);">
+        <div class="save-dialog-actions">
+          <button id="cloud-send-link" type="button">发送登录链接</button>
+          <button id="cloud-sync-now" type="button" class="primary">立即同步</button>
+          <button id="cloud-sign-out" type="button">退出登录</button>
+          <button id="close-cloud-dialog" type="button">关闭</button>
+        </div>
+      </div>
+    </dialog>
     <section class="emulator-frame"><div id="dosbox"></div></section>
     <section class="compat-note">
       <div class="note"><strong>运行链路</strong><br>浏览器 → js-dos → DOSBox-X WASM → 虚拟文件系统 → <code>STAROPEN.EXE</code> → <code>STARDOM.EXE</code></div>
       <div class="note"><strong>存档保护</strong><br><code>STARSAVE.SSS</code> 与 <code>STARSA*.SSS</code> 会按语言包保存到 IndexedDB，并同步写入刷新保护镜像；启动时自动恢复，每 8 秒备份，并保留最近 12 个历史快照，可通过“读取存档”回退。</div>
     </section>
   </main>
+  <script src="supabase-config.js"></script>
   <script src="compat/runtime/js-dos.js"></script>
   <script>
     (() => {
@@ -119,6 +136,7 @@
       const loadOriginalButton = document.getElementById("load-original");
       const sendEscapeButton = document.getElementById("send-escape");
       const stockCheatButton = document.getElementById("stock-cheat");
+      const cloudSyncButton = document.getElementById("cloud-sync");
       const stop = document.getElementById("stop");
       const language = document.getElementById("language");
       const host = document.getElementById("dosbox");
@@ -128,6 +146,13 @@
       const loadSelectedSaveButton = document.getElementById("load-selected-save");
       const importSaveButton = document.getElementById("import-save-button");
       const importSaveFile = document.getElementById("import-save-file");
+      const cloudDialog = document.getElementById("cloud-dialog");
+      const cloudDialogStatus = document.getElementById("cloud-dialog-status");
+      const cloudEmail = document.getElementById("cloud-email");
+      const cloudSendLinkButton = document.getElementById("cloud-send-link");
+      const cloudSyncNowButton = document.getElementById("cloud-sync-now");
+      const cloudSignOutButton = document.getElementById("cloud-sign-out");
+      const closeCloudDialog = document.getElementById("close-cloud-dialog");
       const diagnosticsLogElement = document.getElementById("diagnostics-log");
       const copyDiagnosticsButton = document.getElementById("copy-diagnostics");
       const downloadDiagnosticsButton = document.getElementById("download-diagnostics");
@@ -194,6 +219,275 @@
 
       function diagnosticError(error) {
         return sanitizeDiagnosticValue(error instanceof Error ? error : new Error(String(error)));
+      }
+
+      const SUPABASE_SESSION_KEY = "stardream-supabase-session-v1";
+      const CLOUD_REQUEST_TIMEOUT_MS = 10000;
+      let cloudSession = readCloudSession();
+      let cloudUser = cloudSession && cloudSession.user ? cloudSession.user : null;
+      let cloudSyncInFlight = null;
+
+      function getSupabaseConfig() {
+        const raw = window.STARDREAM_SUPABASE_CONFIG || {};
+        const url = String(raw.url || "").replace(/\/+$/, "");
+        const anonKey = String(raw.anonKey || "");
+        return url && anonKey ? { url, anonKey } : null;
+      }
+
+      function readCloudSession() {
+        try {
+          const value = JSON.parse(localStorage.getItem(SUPABASE_SESSION_KEY) || "null");
+          return value && value.access_token && value.refresh_token ? value : null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function writeCloudSession(session) {
+        cloudSession = session;
+        cloudUser = session && session.user ? session.user : null;
+        try {
+          if (session) localStorage.setItem(SUPABASE_SESSION_KEY, JSON.stringify(session));
+          else localStorage.removeItem(SUPABASE_SESSION_KEY);
+        } catch (_) {}
+        updateCloudUi();
+      }
+
+      function cloudAuthHeaders(accessToken = null, extra = {}) {
+        const config = getSupabaseConfig();
+        if (!config) throw new Error("Supabase 尚未配置");
+        return {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${accessToken || (cloudSession && cloudSession.access_token) || config.anonKey}`,
+          ...extra
+        };
+      }
+
+      async function cloudFetch(path, options = {}, retry = true) {
+        const config = getSupabaseConfig();
+        if (!config) throw new Error("云同步尚未配置");
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), CLOUD_REQUEST_TIMEOUT_MS);
+        let response;
+        try {
+          response = await fetch(`${config.url}${path}`, {
+            ...options,
+            headers: cloudAuthHeaders(null, { "Content-Type": "application/json", ...(options.headers || {}) }),
+            signal: controller.signal
+          });
+        } finally {
+          window.clearTimeout(timer);
+        }
+        if (response.status === 401 && retry && cloudSession && cloudSession.refresh_token) {
+          await refreshCloudSession();
+          return cloudFetch(path, options, false);
+        }
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new Error(`Supabase 请求失败 (${response.status})${body ? ` · ${body.slice(0, 180)}` : ""}`);
+        }
+        if (response.status === 204) return null;
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
+      }
+
+      async function refreshCloudSession() {
+        const config = getSupabaseConfig();
+        if (!config || !cloudSession || !cloudSession.refresh_token) throw new Error("云端登录状态已失效");
+        const response = await fetch(`${config.url}/auth/v1/token?grant_type=refresh_token`, {
+          method: "POST",
+          headers: cloudAuthHeaders(config.anonKey),
+          body: JSON.stringify({ refresh_token: cloudSession.refresh_token })
+        });
+        if (!response.ok) {
+          writeCloudSession(null);
+          throw new Error("云端登录已过期，请重新发送登录链接");
+        }
+        const data = await response.json();
+        writeCloudSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || cloudSession.refresh_token,
+          expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600),
+          user: data.user || cloudUser
+        });
+        return cloudSession;
+      }
+
+      async function ensureCloudUser() {
+        const config = getSupabaseConfig();
+        if (!config) return null;
+        if (cloudSession && Number(cloudSession.expires_at || 0) * 1000 < Date.now() + 60000) await refreshCloudSession();
+        if (!cloudSession) return null;
+        if (!cloudUser || !cloudUser.id) {
+          cloudUser = await cloudFetch("/auth/v1/user");
+          writeCloudSession({ ...cloudSession, user: cloudUser });
+        }
+        return cloudUser;
+      }
+
+      function consumeCloudAuthCallback() {
+        const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        if (!accessToken || !refreshToken) return false;
+        writeCloudSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_at: Math.floor(Date.now() / 1000) + Number(params.get("expires_in") || 3600),
+          user: null
+        });
+        window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+        diagnosticLog("cloud_auth_callback_received");
+        return true;
+      }
+
+      function cloudRecordToLocal(record) {
+        if (!record || !record.save_b64) return null;
+        try {
+          const bytes = base64ToBytes(record.save_b64);
+          const files = cloneSaveFiles((Array.isArray(record.files) ? record.files : []).map((file) => ({ name: file.name, bytes: base64ToBytes(file.bytes) })));
+          if (!isValidSaveBytes(bytes)) throw new Error("云端主存档大小无效");
+          return {
+            bytes,
+            files,
+            savedAt: Number(record.saved_at) || 0,
+            reason: "cloud",
+            size: bytes.byteLength,
+            source: "supabase"
+          };
+        } catch (error) {
+          diagnosticLog("cloud_record_invalid", { folder: record.folder, error: diagnosticError(error) });
+          return null;
+        }
+      }
+
+      function localRecordToCloud(folder, bytes, files, savedAt) {
+        return {
+          user_id: cloudUser.id,
+          folder,
+          saved_at: Number(savedAt) || Date.now(),
+          size: bytes.byteLength,
+          save_b64: bytesToBase64(bytes),
+          files: storedSaveFiles(files).map((file) => ({ name: file.name, size: file.size, bytes: bytesToBase64(file.bytes) }))
+        };
+      }
+
+      async function readCloudSave(folder) {
+        await ensureCloudUser();
+        if (!cloudUser) return null;
+        const rows = await cloudFetch(`/rest/v1/stardream_saves?select=folder,saved_at,size,save_b64,files&folder=eq.${encodeURIComponent(folder)}&limit=1`);
+        return Array.isArray(rows) && rows[0] ? rows[0] : null;
+      }
+
+      async function uploadCloudSave(folder, bytes, files, savedAt, reason = "autosave") {
+        await ensureCloudUser();
+        if (!cloudUser) return false;
+        const remote = await readCloudSave(folder);
+        if (remote && Number(remote.saved_at) > Number(savedAt)) {
+          diagnosticLog("cloud_upload_skipped_newer_remote", { folder, localSavedAt: savedAt, remoteSavedAt: remote.saved_at });
+          return false;
+        }
+        await cloudFetch("/rest/v1/stardream_saves?on_conflict=user_id,folder", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify([localRecordToCloud(folder, bytes, files, savedAt)])
+        });
+        diagnosticLog("cloud_upload_complete", { folder, reason, size: bytes.byteLength, savedAt });
+        return true;
+      }
+
+      async function chooseCloudSave(folder, localRecord) {
+        if (!getSupabaseConfig() || !cloudSession) return localRecord;
+        try {
+          const remote = cloudRecordToLocal(await readCloudSave(folder));
+          if (remote && (!localRecord || remote.savedAt > localRecord.savedAt)) {
+            diagnosticLog("cloud_startup_selected", { folder, source: "supabase", localSavedAt: localRecord ? localRecord.savedAt : 0, remoteSavedAt: remote.savedAt, size: remote.size });
+            void writeStoredSave(folder, remote.bytes, "cloud-download", remote.files)
+              .catch((error) => diagnosticLog("cloud_local_mirror_failed", { folder, error: diagnosticError(error) }));
+            return remote;
+          }
+          if (localRecord && (!remote || localRecord.savedAt > remote.savedAt)) {
+            void uploadCloudSave(folder, localRecord.bytes, localRecord.files, localRecord.savedAt, "startup-local-newer").catch((error) => diagnosticLog("cloud_upload_failed", { folder, reason: "startup-local-newer", error: diagnosticError(error) }));
+          }
+          return localRecord;
+        } catch (error) {
+          diagnosticLog("cloud_startup_read_failed", { folder, error: diagnosticError(error) });
+          return localRecord;
+        }
+      }
+
+      async function requestCloudLogin() {
+        const config = getSupabaseConfig();
+        const email = String(cloudEmail.value || "").trim();
+        if (!config) throw new Error("请先在 Supabase 创建项目并配置 GitHub Secrets");
+        if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("请输入有效邮箱");
+        await cloudFetch("/auth/v1/otp", {
+          method: "POST",
+          body: JSON.stringify({ email, create_user: true, email_redirect_to: `${window.location.origin}${window.location.pathname}` })
+        });
+        setCloudDialogStatus("登录链接已发送，请打开邮箱中的链接完成登录。");
+        diagnosticLog("cloud_login_link_sent", { emailDomain: email.split("@")[1] || "" });
+      }
+
+      function setCloudDialogStatus(text) {
+        cloudDialogStatus.textContent = text;
+      }
+
+      function updateCloudUi() {
+        const configured = Boolean(getSupabaseConfig());
+        const loggedIn = Boolean(cloudUser && cloudUser.id);
+        cloudSyncButton.disabled = !configured;
+        cloudSyncButton.textContent = !configured ? "☁ 云同步未配置" : (loggedIn ? "☁ 云端已登录" : "☁ 云同步");
+        cloudSendLinkButton.disabled = !configured || loggedIn;
+        cloudSyncNowButton.disabled = !configured || !loggedIn;
+        cloudSignOutButton.disabled = !loggedIn;
+        if (!configured) setCloudDialogStatus("当前发布版本尚未配置 Supabase；本地存档功能不受影响。");
+        else if (loggedIn) setCloudDialogStatus(`已登录 ${cloudUser.email || "云端账号"}，可同步 ${currentFolder || "当前语言包"} 存档。`);
+        else setCloudDialogStatus("使用 Supabase 邮箱链接登录后，可在不同设备恢复同一份存档。本地存档仍会保留。");
+      }
+
+      async function syncCloudNow() {
+        if (!cloudUser) throw new Error("请先登录云端账号");
+        if (commandInterface && currentFolder) {
+          const saved = await saveOriginalSave(true, "cloud-sync");
+          if (!saved) throw new Error("当前运行存档读取失败");
+          const local = await readStoredSaveRecord(currentFolder);
+          if (!local) throw new Error("本地存档记录不存在");
+          const uploaded = await uploadCloudSave(currentFolder, local.bytes, local.files, local.savedAt, "manual-sync");
+          setCloudDialogStatus(uploaded ? "当前运行中的存档已同步到云端。" : "云端已有更新版本，请停止后重新启动以恢复云端存档。");
+          return;
+        }
+        const folder = language.value === "cht" ? "STAR_CHT" : "STAR_CHS";
+        const local = await readStoredSaveRecord(folder);
+        const remote = cloudRecordToLocal(await readCloudSave(folder));
+        if (remote && (!local || remote.savedAt > local.savedAt)) {
+          await writeStoredSave(folder, remote.bytes, "cloud-download", remote.files);
+          setCloudDialogStatus("云端较新，已下载到本机；启动原版即可恢复。");
+          diagnosticLog("cloud_manual_download_complete", { folder, size: remote.size, savedAt: remote.savedAt });
+        } else if (local) {
+          await uploadCloudSave(folder, local.bytes, local.files, local.savedAt, "manual-sync");
+          setCloudDialogStatus("本机存档已同步到云端。");
+        } else {
+          setCloudDialogStatus("当前语言包没有可同步的存档。");
+        }
+      }
+
+      async function initializeCloudSync() {
+        consumeCloudAuthCallback();
+        if (!getSupabaseConfig()) {
+          updateCloudUi();
+          diagnosticLog("cloud_disabled", { reason: "missing_config" });
+          return;
+        }
+        try {
+          await ensureCloudUser();
+          updateCloudUi();
+          if (cloudUser) diagnosticLog("cloud_session_ready", { userId: cloudUser.id });
+        } catch (error) {
+          writeCloudSession(null);
+          setCloudDialogStatus(error.message || String(error));
+          diagnosticLog("cloud_session_failed", { error: diagnosticError(error) });
+        }
       }
 
       function clearDiagnosticLog() {
@@ -699,6 +993,10 @@ exit`;
               lastPersistedBytes = bytes;
               lastPersistedFilesSignature = filesSignature;
               diagnosticLog("save_write_complete", { folder: currentFolder, reason, size: bytes.byteLength, auxiliaryFiles: auxiliaryFiles.length, indexedDb: result.indexedDb, mirror: result.mirror });
+              if (getSupabaseConfig() && cloudSession) {
+                void uploadCloudSave(currentFolder, bytes, auxiliaryFiles, result.snapshot.createdAt, reason)
+                  .catch((error) => diagnosticLog("cloud_upload_failed", { folder: currentFolder, reason, error: diagnosticError(error) }));
+              }
               if (showStatus && !result.indexedDb) {
                 setStatus(`原版存档已写入刷新保护镜像 · ${currentFolder} · IndexedDB 暂不可用`);
                 return true;
@@ -1489,6 +1787,10 @@ exit`;
               if (!storedSaveRecord) setStatus(`本地存档不可用 · ${error.message || error}`);
             }
           }
+          if (!options.saveBytes && storedSaveRecord && getSupabaseConfig() && cloudSession) {
+            setStatus("正在比较本地与云端存档…");
+            storedSaveRecord = await chooseCloudSave(folder, storedSaveRecord);
+          }
           const storedSave = storedSaveRecord ? copyBytes(storedSaveRecord.bytes) : null;
           const restoredAuxiliaryFiles = storedSaveRecord ? cloneSaveFiles(storedSaveRecord.files || []) : [];
           lastPersistedBytes = storedSave ? copyBytes(storedSave) : null;
@@ -1647,11 +1949,68 @@ exit`;
         return !stopTimedOut;
       }
 
+      function openCloudDialogWindow() {
+        updateCloudUi();
+        if (typeof cloudDialog.showModal === "function") {
+          if (!cloudDialog.open) cloudDialog.showModal();
+        } else {
+          cloudDialog.setAttribute("open", "");
+        }
+      }
+
+      function closeCloudDialogWindow() {
+        if (typeof cloudDialog.close === "function" && cloudDialog.open) cloudDialog.close();
+        else cloudDialog.removeAttribute("open");
+      }
+
+      async function sendCloudLoginLink() {
+        cloudSendLinkButton.disabled = true;
+        try {
+          await requestCloudLogin();
+        } catch (error) {
+          setCloudDialogStatus(`登录链接发送失败 · ${error.message || error}`);
+          diagnosticLog("cloud_login_link_failed", { error: diagnosticError(error) });
+        } finally {
+          updateCloudUi();
+        }
+      }
+
+      async function handleCloudSync() {
+        if (cloudSyncInFlight) return cloudSyncInFlight;
+        cloudSyncNowButton.disabled = true;
+        const task = syncCloudNow().catch((error) => {
+          setCloudDialogStatus(`云同步失败 · ${error.message || error}`);
+          diagnosticLog("cloud_sync_failed", { folder: currentFolder || null, error: diagnosticError(error) });
+        }).finally(() => {
+          cloudSyncInFlight = null;
+          updateCloudUi();
+        });
+        cloudSyncInFlight = task;
+        return task;
+      }
+
+      async function signOutCloud() {
+        try {
+          if (cloudSession && getSupabaseConfig()) {
+            await cloudFetch("/auth/v1/logout", { method: "POST" }, false).catch(() => {});
+          }
+        } finally {
+          writeCloudSession(null);
+          setCloudDialogStatus("已退出云端账号，本地存档仍保留。");
+          diagnosticLog("cloud_signed_out");
+        }
+      }
+
       launch.addEventListener("click", launchOriginal);
       saveOriginalButton.addEventListener("click", () => { saveOriginalSave(true); });
       loadOriginalButton.addEventListener("click", openSaveDialog);
       sendEscapeButton.addEventListener("click", sendEscapeKey);
       stockCheatButton.addEventListener("click", sendStockCheat);
+      cloudSyncButton.addEventListener("click", openCloudDialogWindow);
+      closeCloudDialog.addEventListener("click", closeCloudDialogWindow);
+      cloudSendLinkButton.addEventListener("click", sendCloudLoginLink);
+      cloudSyncNowButton.addEventListener("click", handleCloudSync);
+      cloudSignOutButton.addEventListener("click", signOutCloud);
       closeSaveDialog.addEventListener("click", closeSaveDialogWindow);
       loadSelectedSaveButton.addEventListener("click", loadSelectedSave);
       importSaveButton.addEventListener("click", () => importSaveFile.click());
@@ -1674,6 +2033,8 @@ exit`;
       window.addEventListener("beforeunload", () => requestSaveBeforePageExit("visibility"));
       window.addEventListener("freeze", () => requestSaveBeforePageExit("visibility"));
       if (hasInterruptedRun()) setStatus("检测到上次运行异常中断 · 可通过读取存档恢复历史快照");
+      updateCloudUi();
+      void initializeCloudSync();
       window.StarDreamCompat = {
         launch: launchOriginal,
         save: saveOriginalSave,
