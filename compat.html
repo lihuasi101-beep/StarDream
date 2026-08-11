@@ -454,6 +454,8 @@
       }
 
       async function syncCloudNow() {
+        await ensureCloudUser();
+        diagnosticLog("cloud_sync_begin", { folder: currentFolder || (language.value === "cht" ? "STAR_CHT" : "STAR_CHS"), hasRuntime: Boolean(commandInterface) });
         if (!cloudUser) throw new Error("请先登录云端账号");
         if (commandInterface && currentFolder) {
           const saved = await saveOriginalSave(true, "cloud-sync");
@@ -2001,6 +2003,7 @@ exit`;
 
       async function handleCloudSync() {
         if (cloudSyncInFlight) return cloudSyncInFlight;
+        setCloudDialogStatus("正在检查本地与云端存档…");
         cloudSyncNowButton.disabled = true;
         const task = syncCloudNow().catch((error) => {
           setCloudDialogStatus(`云同步失败 · ${error.message || error}`);
