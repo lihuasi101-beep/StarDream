@@ -111,7 +111,7 @@
         <h2>云端存档</h2>
         <p class="save-dialog-help" id="cloud-dialog-status">使用 Supabase 邮箱链接登录后，可在不同设备恢复同一份存档。本地存档仍会保留。</p>
         <label for="cloud-email">邮箱</label>
-        <input id="cloud-email" type="email" autocomplete="email" placeholder="name@example.com" style="display:block;width:100%;min-height:42px;margin-top:7px;padding:0 10px;border:1px solid rgba(247,239,217,.2);background:var(--ink-soft);color:var(--paper);">
+        <input id="cloud-email" type="text" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="name@example.com" style="display:block;width:100%;min-height:42px;margin-top:7px;padding:0 10px;border:1px solid rgba(247,239,217,.2);background:var(--ink-soft);color:var(--paper);">
         <div class="save-dialog-actions">
           <button id="cloud-send-link" type="button">发送登录链接</button>
           <button id="cloud-sync-now" type="button" class="primary">立即同步</button>
