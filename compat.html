@@ -428,12 +428,13 @@
         const email = String(cloudEmail.value || "").trim();
         if (!config) throw new Error("请先在 Supabase 创建项目并配置 GitHub Secrets");
         if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("请输入有效邮箱");
-        await cloudFetch("/auth/v1/otp", {
+        const redirectTo = getCloudRedirectUrl();
+        await cloudFetch(`/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`, {
           method: "POST",
-          body: JSON.stringify({ email, create_user: true, email_redirect_to: getCloudRedirectUrl() })
+          body: JSON.stringify({ email, create_user: true })
         });
         setCloudDialogStatus("登录链接已发送，请打开邮箱中的链接完成登录。");
-        diagnosticLog("cloud_login_link_sent", { emailDomain: email.split("@")[1] || "", redirectTo: getCloudRedirectUrl() });
+        diagnosticLog("cloud_login_link_sent", { emailDomain: email.split("@")[1] || "", redirectTo });
       }
 
       function setCloudDialogStatus(text) {
